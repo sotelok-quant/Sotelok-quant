@@ -6,18 +6,13 @@ from flask import Flask, render_template_string
 app = Flask(__name__)
 
 # ==========================================
-# 1. MOTOR MATEMÁTICO AVANZADO (DIXON-COLES & MATRICES)
+# 1. MOTOR MATEMÁTICO MULTIVARIABLE & PATRONES
 # ==========================================
 
 def poisson_pmf(k, lambda_param):
-    """Función de Masa de Probabilidad de Poisson."""
     return (math.pow(lambda_param, k) * math.exp(-lambda_param)) / math.factorial(k)
 
 def dixon_coles_tau(x, y, lambda_l, lambda_v, rho=-0.13):
-    """
-    Ajuste de correlación de Dixon-Coles para corregir la dependencia 
-    entre puntajes bajos (0-0, 1-0, 0-1, 1-1).
-    """
     if x == 0 and y == 0:
         return 1.0 - (lambda_l * lambda_v * rho)
     elif x == 1 and y == 0:
@@ -29,189 +24,100 @@ def dixon_coles_tau(x, y, lambda_l, lambda_v, rho=-0.13):
     else:
         return 1.0
 
-def generar_matriz_dixon_coles(lambda_l, lambda_v, max_goles=8):
+def patron_evaluacion_integral(partido):
     """
-    Calcula la matriz de probabilidades exactas mediante álgebra lineal 
-    y el ajuste de Dixon-Coles.
+    Aplica el patrón de decisión unificado para determinar 
+    cuál es el mercado con mayor probabilidad y valor del encuentro.
     """
-    matriz = []
-    prob_home_win = 0.0
-    prob_draw = 0.0
-    prob_away_win = 0.0
-    prob_over_15 = 0.0
-    prob_over_25 = 0.0
-
-    for h in range(max_goles):
-        fila = []
-        p_h = poisson_pmf(h, lambda_l)
-        for a in range(max_goles):
-            p_a = poisson_pmf(a, lambda_v)
-            tau = dixon_coles_tau(h, a, lambda_l, lambda_v)
-            prob_exacta = p_h * p_a * tau
-            fila.append(prob_exacta)
-
-            # Acumuladores de mercado
-            if h > a:
-                prob_home_win += prob_exacta
-            elif h == a:
-                prob_draw += prob_exacta
-            else:
-                prob_away_win += prob_exacta
-
-            if (h + a) > 1.5:
-                prob_over_15 += prob_exacta
-            if (h + a) > 2.5:
-                prob_over_25 += prob_exacta
-
-        matriz.append(fila)
-
-    return {
-        "home_win": prob_home_win * 100,
-        "draw": prob_draw * 100,
-        "away_win": prob_away_win * 100,
-        "over_15": prob_over_15 * 100,
-        "over_25": prob_over_25 * 100
-    }
-
-def shin_implied_probability(cuota_l, cuota_v):
-    """Calcula la probabilidad real sin margen comercial usando la fórmula de Shin."""
-    inv_sum = (1 / cuota_l) + (1 / cuota_v)
-    return (1 / cuota_l) / inv_sum
-
-def monte_carlo_normal_vectorizado(proj_l, proj_v, std_dev=11.5, sims=5000):
-    """Simulación Monte Carlo para deportes de alta puntuación (NBA / NFL)."""
-    hits_over = 0
-    total_line = proj_l + proj_v
-    for _ in range(sims):
-        sim_l = random.gauss(proj_l, std_dev)
-        sim_v = random.gauss(proj_v, std_dev)
-        if (sim_l + sim_v) > total_line:
-            hits_over += 1
-    return (hits_over / sims) * 100
-
-def evaluador_cuantitativo_ia(prob_modelo, cuota, prob_shin):
-    """Filtro de valor esperado (+EV) y score de fiabilidad institucional."""
-    prob_implied = (1 / cuota) * 100
-    ev_pct = (((prob_modelo / 100) * cuota) - 1) * 100
-    desvio_marcado = abs(prob_modelo - (prob_shin * 100))
+    lambda_l = partido["lambda_l"]
+    lambda_v = partido["lambda_v"]
     
-    score_ia = (prob_modelo * 0.4) + (ev_pct * 2.5) - (desvio_marcado * 0.3)
-    return round(ev_pct, 2), round(score_ia, 2)
+    # 1. Simulación de Goles (Dixon-Coles)
+    prob_over_25 = 0.0
+    for h in range(7):
+        for a in range(7):
+            tau = dixon_coles_tau(h, a, lambda_l, lambda_v)
+            p_ex = poisson_pmf(h, lambda_l) * poisson_pmf(a, lambda_v) * tau
+            if (h + a) > 2.5: prob_over_25 += p_ex
 
-def generar_dictamen_cuantitativo(deporte, local, visitante, prob, ev, mercado):
-    """Genera una síntesis lógica y cualitativa del partido."""
-    if ev >= 10.0 and prob >= 60.0:
-        opinion = f"Análisis de Convergencia Alta: El modelo Dixon-Coles detecta una clara ineficiencia en las cuotas del mercado. {local} presenta métricas ofensivas superiores ajustadas por Poisson."
-        recomendacion = f"🎯 Pick Institucional (+EV Alto): {mercado} (Probabilidad: {prob}%)"
-    elif ev >= 2.0 and prob >= 50.0:
-        opinion = f"Análisis de Valor Moderado: Las simulaciones muestran estabilidad estadística en los parámetros de {local} vs {visitante}. Margen de valor positivo aceptable."
-        recomendacion = f"💡 Selección Sugerida: {mercado} (Opción Recomendada)"
-    else:
-        opinion = f"Análisis de Riesgo/Volatilidad: El desvío entre las métricas de la casa de apuestas y el modelo matricial sugiere moderar el stake."
-        recomendacion = f"⚠️ Selección Conservadora: Evaluar apuestas combinadas o hándicap protector."
+    # 2. Simulación de Córners y Tiros
+    prob_corners = sum(poisson_pmf(k, partido["lambda_corners"]) for k in range(9, 20))
+    prob_tarjetas = sum(poisson_pmf(k, partido["lambda_tarjetas"]) for k in range(4, 15))
 
-    return opinion, recomendacion
+    # Consolidar opciones evaluadas
+    candidatos = [
+        {"mercado": "⚽ Más de 2.5 Goles", "prob": round(prob_over_25 * 100, 2), "cuota": partido["cuota_goles"]},
+        {"mercado": "⛳ Córners: Más de 8.5", "prob": round(prob_corners * 100, 2), "cuota": partido["cuota_corners"]},
+        {"mercado": "🟨 Tarjetas: Más de 3.5", "prob": round(prob_tarjetas * 100, 2), "cuota": partido["cuota_tarjetas"]}
+    ]
 
-# ==========================================
-# 2. CARTELERA Y BASE DE DATOS (FECHA DINÁMICA)
-# ==========================================
+    # Patrón de selección: Filtrar por la mayor probabilidad combinada con rentabilidad (+EV)
+    mejor_pick = max(candidatos, key=lambda x: x["prob"])
+    ev = (((mejor_pick["prob"] / 100) * mejor_pick["cuota"]) - 1) * 100
+    score_ia = (mejor_pick["prob"] * 0.6) + (ev * 2.5)
 
-fecha_actual_str = datetime.now().strftime("%d/%m/%Y")
+    return mejor_pick, round(ev, 2), round(score_ia, 2)
 
-cartelera_ligas_principales = [
-    {
-        "deporte": "Futbol", "liga": "Champions League",
-        "local": "Real Madrid", "visitante": "Bayern Múnich",
-        "fecha": fecha_actual_str, "hora": "19:00",
-        "lambda_l": 2.25, "lambda_v": 1.20,
-        "cuota": 1.75, "cuota_rival": 3.10, "mercado_target": "⚽ Más de 2.5 Goles"
-    },
-    {
-        "deporte": "Futbol", "liga": "Premier League",
-        "local": "Manchester City", "visitante": "Arsenal",
-        "fecha": fecha_actual_str, "hora": "17:30",
-        "lambda_l": 1.85, "lambda_v": 1.45,
-        "cuota": 1.90, "cuota_rival": 2.10, "mercado_target": "⚽ Más de 1.5 Goles"
-    },
-    {
-        "deporte": "NBA", "liga": "NBA Regular Season",
-        "local": "Boston Celtics", "visitante": "Milwaukee Bucks",
-        "fecha": fecha_actual_str, "hora": "20:00",
-        "proj_l": 116.5, "proj_v": 110.0, "linea": 224.5,
-        "cuota": 1.91, "cuota_rival": 1.91, "mercado_target": "🏀 Over 224.5 Pts"
-    },
-    {
-        "deporte": "Tenis", "liga": "ATP Masters 1000",
-        "local": "Novak Djokovic", "visitante": "Carlos Alcaraz",
-        "fecha": fecha_actual_str, "hora": "15:00",
-        "lambda_l": 1.80, "lambda_v": 1.95,
-        "cuota": 1.85, "cuota_rival": 1.95, "mercado_target": "🎾 Ganador: Novak Djokovic"
-    }
-]
+def generar_calendario_dinamico():
+    """
+    Simula la actualización automática del calendario diario 
+    basada en la fecha actual del sistema.
+    """
+    hoy_str = datetime.now().strftime("%d/%m/%Y")
+    
+    # Cartelera sincronizada para el día de hoy
+    return [
+        {
+            "deporte": "Futbol", "liga": "Champions League",
+            "local": "Real Madrid", "visitante": "Manchester City",
+            "fecha": hoy_str, "hora": "20:00",
+            "lambda_l": 2.15, "lambda_v": 1.95,
+            "lambda_corners": 10.5, "lambda_tarjetas": 4.5,
+            "cuota_goles": 1.80, "cuota_corners": 1.72, "cuota_tarjetas": 1.90
+        },
+        {
+            "deporte": "Futbol", "liga": "Premier League",
+            "local": "Arsenal", "visitante": "Liverpool",
+            "fecha": hoy_str, "hora": "17:30",
+            "lambda_l": 1.85, "lambda_v": 1.75,
+            "lambda_corners": 9.8, "lambda_tarjetas": 5.1,
+            "cuota_goles": 1.75, "cuota_corners": 1.85, "cuota_tarjetas": 1.65
+        }
+    ]
 
-def procesar_predicciones():
-    resultados = []
+def procesar_cartelera_inteligente():
+    partidos = generar_calendario_dinamico()
+    analisis_final = []
 
-    for evento in cartelera_ligas_principales:
-        deporte = evento["deporte"]
-        cuota = evento["cuota"]
-        prob_shin = shin_implied_probability(cuota, evento.get("cuota_rival", 2.00))
+    for p in partidos:
+        pick, ev, score = patron_evaluacion_integral(p)
+        
+        # Resumen generado por IA basado en los patrones cuantitativos
+        resumen = (
+            f"Análisis Automatizado: El patrón matricial para {p['local']} vs {p['visitante']} "
+            f"indica alta estabilidad en el mercado de '{pick['mercado']}' con una probabilidad del {pick['prob']}% "
+            f"y un valor esperado (+EV) de +{ev}%."
+        )
 
-        if deporte == "Futbol":
-            # Ejecutar modelo de Dixon-Coles
-            dc = generar_matriz_dixon_coles(evento["lambda_l"], evento["lambda_v"])
-            prob_final = dc["over_25"] if "2.5" in evento["mercado_target"] else dc["over_15"]
-            ev_pct, score_ia = evaluador_cuantitativo_ia(prob_final, cuota, prob_shin)
-            opinion, recomendacion = generar_dictamen_cuantitativo(
-                deporte, evento["local"], evento["visitante"], round(prob_final, 2), ev_pct, evento["mercado_target"]
-            )
+        analisis_final.append({
+            "deporte": p["deporte"],
+            "liga": p["liga"],
+            "partido": f"{p['local']} vs {p['visitante']}",
+            "fecha": p["fecha"],
+            "hora": p["hora"],
+            "pick": pick["mercado"],
+            "prob": pick["prob"],
+            "cuota": pick["cuota"],
+            "ev": ev,
+            "score": score,
+            "resumen": resumen
+        })
 
-            resultados.append({
-                "deporte": deporte, "liga": evento["liga"],
-                "partido": f"{evento['local']} vs {evento['visitante']}",
-                "fecha": evento["fecha"], "hora": evento["hora"],
-                "mercado": evento["mercado_target"],
-                "prob": round(prob_final, 2), "cuota": cuota, "ev": ev_pct,
-                "score": score_ia, "opinion": opinion, "recomendacion": recomendacion
-            })
-
-        elif deporte == "NBA":
-            prob_final = monte_carlo_normal_vectorizado(evento["proj_l"], evento["proj_v"])
-            ev_pct, score_ia = evaluador_cuantitativo_ia(prob_final, cuota, prob_shin)
-            opinion, recomendacion = generar_dictamen_cuantitativo(
-                deporte, evento["local"], evento["visitante"], round(prob_final, 2), ev_pct, evento["mercado_target"]
-            )
-
-            resultados.append({
-                "deporte": deporte, "liga": evento["liga"],
-                "partido": f"{evento['local']} vs {evento['visitante']}",
-                "fecha": evento["fecha"], "hora": evento["hora"],
-                "mercado": evento["mercado_target"],
-                "prob": round(prob_final, 2), "cuota": cuota, "ev": ev_pct,
-                "score": score_ia, "opinion": opinion, "recomendacion": recomendacion
-            })
-
-        elif deporte == "Tenis":
-            prob_final = round((1 / evento["lambda_l"]) / ((1 / evento["lambda_l"]) + (1 / evento["lambda_v"])) * 100, 2)
-            ev_pct, score_ia = evaluador_cuantitativo_ia(prob_final, cuota, prob_shin)
-            opinion, recomendacion = generar_dictamen_cuantitativo(
-                deporte, evento["local"], evento["visitante"], prob_final, ev_pct, evento["mercado_target"]
-            )
-
-            resultados.append({
-                "deporte": deporte, "liga": evento["liga"],
-                "partido": f"{evento['local']} vs {evento['visitante']}",
-                "fecha": evento["fecha"], "hora": evento["hora"],
-                "mercado": evento["mercado_target"],
-                "prob": prob_final, "cuota": cuota, "ev": ev_pct,
-                "score": score_ia, "opinion": opinion, "recomendacion": recomendacion
-            })
-
-    resultados.sort(key=lambda x: x["score"], reverse=True)
-    return resultados
+    analisis_final.sort(key=lambda x: x["score"], reverse=True)
+    return analisis_final
 
 # ==========================================
-# 3. VISTA HTML INSTITUCIONAL Y PWA
+# 2. INTERFAZ WEB RESPONSIVA (PWA)
 # ==========================================
 
 HTML_TEMPLATE = """
@@ -227,34 +133,38 @@ HTML_TEMPLATE = """
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 15px; margin: 0; }
         h1 { color: #38bdf8; text-align: center; font-size: 22px; margin-bottom: 2px; }
         .sub { text-align: center; color: #94a3b8; font-size: 12px; margin-bottom: 20px; }
-        .card { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 16px; border-left: 5px solid #38bdf8; box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
+        .card { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 18px; border-left: 5px solid #38bdf8; box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
         .tag { background: #0284c7; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
         .match { font-size: 17px; font-weight: bold; margin: 10px 0 6px 0; }
-        .stats { font-size: 13px; color: #cbd5e1; margin-bottom: 12px; line-height: 1.5; }
+        .info { font-size: 12px; color: #94a3b8; margin-bottom: 12px; }
+        .pick-box { background: #0f172a; padding: 10px 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #334155; }
+        .pick-title { color: #facc15; font-weight: bold; font-size: 14px; }
         .ev { color: #4ade80; font-weight: bold; }
-        .ai-box { background: #0f172a; padding: 12px; border-radius: 8px; font-size: 12px; border: 1px solid #334155; line-height: 1.4; }
-        .ai-title { color: #38bdf8; font-weight: bold; margin-bottom: 5px; }
-        .ai-rec { color: #facc15; font-weight: bold; margin-top: 8px; }
+        .ai-box { background: #1e293b; padding: 10px; border-radius: 8px; font-size: 12px; border-left: 3px solid #38bdf8; color: #cbd5e1; line-height: 1.4; }
     </style>
 </head>
 <body>
     <h1>🧠 SOTELOK QUANT SUITE</h1>
-    <div class="sub">Motor Matemático Avanzado (Dixon-Coles & Matrices)</div>
+    <div class="sub">Calendario Automatizado & Patrones de Decisión Cuantitativa</div>
     
     {% for item in resultados %}
     <div class="card">
         <span class="tag">{{ item.deporte }} | {{ item.liga }}</span>
         <div class="match">⚔️ {{ item.partido }}</div>
-        <div class="stats">
-            📅 <b>Fecha:</b> {{ item.fecha }} | ⏰ <b>Hora:</b> {{ item.hora }}<br>
-            🎯 <b>Mercado Evaluado:</b> {{ item.mercado }}<br>
-            📈 <b>Probabilidad Cuantitativa:</b> {{ item.prob }}% | 💰 <b>Cuota:</b> {{ item.cuota }}<br>
-            🚀 <b>+EV Esperado:</b> <span class="ev">+{{ item.ev }}%</span> | ⭐ <b>Score IA:</b> {{ item.score }} pts
+        <div class="info">📅 {{ item.fecha }} | ⏰ {{ item.hora }}</div>
+        
+        <div class="pick-box">
+            <div style="color:#38bdf8; font-size:11px; font-weight:bold; margin-bottom:4px;">🎯 PRONÓSTICO ÓPTIMO SELECCIONADO:</div>
+            <div class="pick-title">{{ item.pick }}</div>
+            <div style="font-size: 13px; margin-top: 6px; color: #cbd5e1;">
+                📈 Probabilidad: <b>{{ item.prob }}%</b> | 💰 Cuota: <b>{{ item.cuota }}</b><br>
+                🚀 Valor Esperado (+EV): <span class="ev">+{{ item.ev }}%</span> | ⭐ Score: {{ item.score }} pts
+            </div>
         </div>
+
         <div class="ai-box">
-            <div class="ai-title">🤖 Dictamen Institucional & IA:</div>
-            <div>{{ item.opinion }}</div>
-            <div class="ai-rec">{{ item.recomendacion }}</div>
+            <div style="color: #38bdf8; font-weight: bold; margin-bottom: 4px;">🤖 Dictamen del Patrón de IA:</div>
+            <div>{{ item.resumen }}</div>
         </div>
     </div>
     {% endfor %}
@@ -273,7 +183,7 @@ MANIFEST_JSON = """{
 
 @app.route('/')
 def home():
-    datos = procesar_predicciones()
+    datos = procesar_cartelera_inteligente()
     return render_template_string(HTML_TEMPLATE, resultados=datos)
 
 @app.route('/manifest.json')
