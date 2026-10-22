@@ -61,20 +61,28 @@ def obtener_cartelera_respaldo():
     hoy_str = datetime.now().strftime("%d/%m/%Y")
     return [
         {
-            "deporte": "Futbol", "liga": "UEFA Champions League",
-            "local": "Real Madrid", "visitante": "Bayern Múnich",
-            "fecha": hoy_str, "hora": "21:00",
-            "lambda_l": 2.10, "lambda_v": 1.80,
-            "lambda_corners": 10.2, "lambda_tarjetas": 4.5,
-            "cuota_goles": 1.75, "cuota_corners": 1.72, "cuota_tarjetas": 1.90
+            "deporte": "Futbol", "liga": "Premier League",
+            "local": "Manchester City", "visitante": "Arsenal FC",
+            "fecha": hoy_str, "hora": "18:30",
+            "lambda_l": 2.05, "lambda_v": 1.70,
+            "lambda_corners": 10.5, "lambda_tarjetas": 4.1,
+            "cuota_goles": 1.75, "cuota_corners": 1.80, "cuota_tarjetas": 1.85
         },
         {
-            "deporte": "Futbol", "liga": "Copa Libertadores",
-            "local": "SE Palmeiras", "visitante": "Fluminense FC",
-            "fecha": hoy_str, "hora": "00:30",
-            "lambda_l": 1.90, "lambda_v": 1.50,
-            "lambda_corners": 9.5, "lambda_tarjetas": 4.0,
-            "cuota_goles": 1.85, "cuota_corners": 1.75, "cuota_tarjetas": 1.80
+            "deporte": "Futbol", "liga": "La Liga",
+            "local": "Atlético de Madrid", "visitante": "Athletic Club",
+            "fecha": hoy_str, "hora": "21:00",
+            "lambda_l": 1.85, "lambda_v": 1.40,
+            "lambda_corners": 9.2, "lambda_tarjetas": 4.8,
+            "cuota_goles": 1.90, "cuota_corners": 1.72, "cuota_tarjetas": 1.75
+        },
+        {
+            "deporte": "Futbol", "liga": "Serie A",
+            "local": "AC Milan", "visitante": "SSC Napoli",
+            "fecha": hoy_str, "hora": "20:45",
+            "lambda_l": 1.65, "lambda_v": 1.55,
+            "lambda_corners": 9.8, "lambda_tarjetas": 4.4,
+            "cuota_goles": 1.82, "cuota_corners": 1.78, "cuota_tarjetas": 1.80
         }
     ]
 
@@ -183,10 +191,10 @@ def service_worker():
     return app.response_class(SERVICE_WORKER_JS, mimetype='application/javascript')
 
 # ==========================================
-# 📱 INTERFAZ WEB & SERVICE WORKER (NETWORK FIRST)
+# 📱 INTERFAZ WEB & SERVICE WORKER
 # ==========================================
 SERVICE_WORKER_JS = """
-const CACHE_NAME = 'sotelok-v4-live';
+const CACHE_NAME = 'sotelok-v5-live';
 
 self.addEventListener('install', event => {
   self.skipWaiting();
@@ -197,7 +205,6 @@ self.addEventListener('activate', event => {
 });
 
 self.addEventListener('fetch', event => {
-  // Estrategia Network First: Consulta primero a la red/servidor
   event.respondWith(
     fetch(event.request)
       .then(networkResponse => {
@@ -206,7 +213,7 @@ self.addEventListener('fetch', event => {
           return networkResponse;
         });
       })
-      .catch(() => caches.match(event.request)) // Si no hay conexión, usa la caché
+      .catch(() => caches.match(event.request))
   );
 });
 """
