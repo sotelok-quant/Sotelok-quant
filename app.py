@@ -6,7 +6,32 @@ from flask import Flask, render_template_string
 app = Flask(__name__)
 
 # ==========================================
-# 1. MOTOR MATEMÁTICO MULTIVARIABLE & PATRONES
+# 📋 CARTELERA DE PARTIDOS DE HOY (EDITABLE)
+# ==========================================
+# Aquí puedes actualizar los partidos reales del día fácilmente:
+HOY_STR = datetime.now().strftime("%d/%m/%Y")
+
+PARTIDOS_REALES_HOY = [
+    {
+        "deporte": "Futbol", "liga": "Champions League",
+        "local": "Barcelona", "visitante": "Bayern Múnich",
+        "fecha": HOY_STR, "hora": "21:00",
+        "lambda_l": 2.10, "lambda_v": 1.85,
+        "lambda_corners": 9.5, "lambda_tarjetas": 4.0,
+        "cuota_goles": 1.75, "cuota_corners": 1.80, "cuota_tarjetas": 1.90
+    },
+    {
+        "deporte": "Futbol", "liga": "Premier League",
+        "local": "Chelsea", "visitante": "Manchester United",
+        "fecha": HOY_STR, "hora": "18:30",
+        "lambda_l": 1.75, "lambda_v": 1.70,
+        "lambda_corners": 10.2, "lambda_tarjetas": 5.0,
+        "cuota_goles": 1.85, "cuota_corners": 1.72, "cuota_tarjetas": 1.65
+    }
+]
+
+# ==========================================
+# 1. MOTOR MATEMÁTICO & PATRONES DE DECISIÓN
 # ==========================================
 
 def poisson_pmf(k, lambda_param):
@@ -25,14 +50,10 @@ def dixon_coles_tau(x, y, lambda_l, lambda_v, rho=-0.13):
         return 1.0
 
 def patron_evaluacion_integral(partido):
-    """
-    Aplica el patrón de decisión unificado para determinar 
-    cuál es el mercado con mayor probabilidad y valor del encuentro.
-    """
     lambda_l = partido["lambda_l"]
     lambda_v = partido["lambda_v"]
     
-    # 1. Simulación de Goles (Dixon-Coles)
+    # Simulación de Goles (Dixon-Coles)
     prob_over_25 = 0.0
     for h in range(7):
         for a in range(7):
@@ -40,59 +61,28 @@ def patron_evaluacion_integral(partido):
             p_ex = poisson_pmf(h, lambda_l) * poisson_pmf(a, lambda_v) * tau
             if (h + a) > 2.5: prob_over_25 += p_ex
 
-    # 2. Simulación de Córners y Tiros
+    # Simulación de Córners y Tarjetas
     prob_corners = sum(poisson_pmf(k, partido["lambda_corners"]) for k in range(9, 20))
     prob_tarjetas = sum(poisson_pmf(k, partido["lambda_tarjetas"]) for k in range(4, 15))
 
-    # Consolidar opciones evaluadas
     candidatos = [
         {"mercado": "⚽ Más de 2.5 Goles", "prob": round(prob_over_25 * 100, 2), "cuota": partido["cuota_goles"]},
         {"mercado": "⛳ Córners: Más de 8.5", "prob": round(prob_corners * 100, 2), "cuota": partido["cuota_corners"]},
         {"mercado": "🟨 Tarjetas: Más de 3.5", "prob": round(prob_tarjetas * 100, 2), "cuota": partido["cuota_tarjetas"]}
     ]
 
-    # Patrón de selección: Filtrar por la mayor probabilidad combinada con rentabilidad (+EV)
     mejor_pick = max(candidatos, key=lambda x: x["prob"])
     ev = (((mejor_pick["prob"] / 100) * mejor_pick["cuota"]) - 1) * 100
     score_ia = (mejor_pick["prob"] * 0.6) + (ev * 2.5)
 
     return mejor_pick, round(ev, 2), round(score_ia, 2)
 
-def generar_calendario_dinamico():
-    """
-    Simula la actualización automática del calendario diario 
-    basada en la fecha actual del sistema.
-    """
-    hoy_str = datetime.now().strftime("%d/%m/%Y")
-    
-    # Cartelera sincronizada para el día de hoy
-    return [
-        {
-            "deporte": "Futbol", "liga": "Champions League",
-            "local": "Real Madrid", "visitante": "Manchester City",
-            "fecha": hoy_str, "hora": "20:00",
-            "lambda_l": 2.15, "lambda_v": 1.95,
-            "lambda_corners": 10.5, "lambda_tarjetas": 4.5,
-            "cuota_goles": 1.80, "cuota_corners": 1.72, "cuota_tarjetas": 1.90
-        },
-        {
-            "deporte": "Futbol", "liga": "Premier League",
-            "local": "Arsenal", "visitante": "Liverpool",
-            "fecha": hoy_str, "hora": "17:30",
-            "lambda_l": 1.85, "lambda_v": 1.75,
-            "lambda_corners": 9.8, "lambda_tarjetas": 5.1,
-            "cuota_goles": 1.75, "cuota_corners": 1.85, "cuota_tarjetas": 1.65
-        }
-    ]
-
 def procesar_cartelera_inteligente():
-    partidos = generar_calendario_dinamico()
     analisis_final = []
 
-    for p in partidos:
+    for p in PARTIDOS_REALES_HOY:
         pick, ev, score = patron_evaluacion_integral(p)
         
-        # Resumen generado por IA basado en los patrones cuantitativos
         resumen = (
             f"Análisis Automatizado: El patrón matricial para {p['local']} vs {p['visitante']} "
             f"indica alta estabilidad en el mercado de '{pick['mercado']}' con una probabilidad del {pick['prob']}% "
@@ -145,7 +135,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <h1>🧠 SOTELOK QUANT SUITE</h1>
-    <div class="sub">Calendario Automatizado & Patrones de Decisión Cuantitativa</div>
+    <div class="sub">Panel de Pronósticos Deportivos & IA Cuantitativa</div>
     
     {% for item in resultados %}
     <div class="card">
@@ -178,7 +168,7 @@ MANIFEST_JSON = """{
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
-  "theme_color": "#38bdf8"
+  "theme_color":="#38bdf8"
 }"""
 
 @app.route('/')
