@@ -19,7 +19,7 @@ def obtener_partidos_api():
     headers = {"X-Auth-Token": API_KEY_FUTBOL}
     
     try:
-        response = requests.get(url, headers=headers, timeout=5)
+        response = requests.get(url, headers=headers, timeout=8)
         if response.status_code == 200:
             data = response.json()
             partidos_formateados = []
@@ -183,21 +183,30 @@ def service_worker():
     return app.response_class(SERVICE_WORKER_JS, mimetype='application/javascript')
 
 # ==========================================
-# 📱 INTERFAZ WEB PWA COMPLETA
+# 📱 INTERFAZ WEB & SERVICE WORKER (NETWORK FIRST)
 # ==========================================
 SERVICE_WORKER_JS = """
-const CACHE_NAME = 'sotelok-v2';
-const urlsToCache = ['/', '/backtesting', '/manifest.json'];
+const CACHE_NAME = 'sotelok-v4-live';
 
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
-  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', event => {
+  event.waitUntil(clients.claim());
 });
 
 self.addEventListener('fetch', event => {
+  // Estrategia Network First: Consulta primero a la red/servidor
   event.respondWith(
-    caches.match(event.request).then(response => response || fetch(event.request))
+    fetch(event.request)
+      .then(networkResponse => {
+        return caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, networkResponse.clone());
+          return networkResponse;
+        });
+      })
+      .catch(() => caches.match(event.request)) // Si no hay conexión, usa la caché
   );
 });
 """
