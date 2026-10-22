@@ -47,7 +47,6 @@ def inicializar_base_datos():
         )
     ''')
     conn.commit()
-    
     cursor.execute('SELECT COUNT(*) FROM bankroll')
     if cursor.fetchone()[0] == 0:
         cursor.execute('INSERT INTO bankroll (capital_inicial, capital_actual) VALUES (1000.0, 1000.0)')
@@ -57,7 +56,6 @@ def inicializar_base_datos():
 def procesar_perfil_cognitivo(local, visitante):
     l_lower = local.lower()
     v_lower = visitante.lower()
-    
     if any(k in l_lower or k in v_lower for k in ["real madrid", "barcelona", "bayern", "arsenal", "city", "roma", "copenhague", "betis", "athletic"]):
         return "Europa", "UEFA Elite & Conference Matchup", 1.98, 1.64, 0.85, 1.07, 1.18
     elif "madrid" in l_lower or "barcelona" in l_lower or "valencia" in l_lower:
@@ -98,13 +96,16 @@ def motor_cognitivo_sotelok_pro(p):
 
     marcador_probable = max(matriz_goles, key=matriz_goles.get)
 
+    m_exacto = "🎯 Marcador Exacto Modelado: " + str(marcador_probable[0]) + "-" + str(marcador_probable[1])
+    m_local = "🏆 Victoria Directa Local (" + str(p['local']) + ")"
+
     universo_mercados = [
-        {"mercado": "🎯 Marcador Exacto Modelado: " + str(marcador_probable[0]) + "-" + str(marcador_probable[1]), "prob": round(matriz_goles[marcador_probable] * 100, 2), "cuota": 7.80, "tipo": "Alta Cuota"},
+        {"mercado": m_exacto, "prob": round(matriz_goles[marcador_probable] * 100, 2), "cuota": 7.80, "tipo": "Alta Cuota"},
         {"mercado": "⚽ Goles: Más de 2.5", "prob": round(p_over_25 * 100, 2), "cuota": 1.86, "tipo": "Goles"},
         {"mercado": "⚡ Goles: Más de 1.5 en el Partido", "prob": round(p_over_15 * 100, 2), "cuota": 1.34, "tipo": "Seguridad"},
         {"mercado": "🔥 Ambos Equipos Anotan (BTTS)", "prob": round(p_btts * 100, 2), "cuota": 1.78, "tipo": "Especial"},
         {"mercado": "🛡️ Cobertura: Menos de 3.5 Goles", "prob": round((1.0 - p_over_35) * 100, 2), "cuota": 1.44, "tipo": "Defensivo"},
-        {"mercado": "🏆 Victoria Directa Local (" + p['local'] + ")", "prob": round(p_1x2_l * 100, 2), "cuota": 2.15, "tipo": "Línea Principal"}
+        {"mercado": m_local, "prob": round(p_1x2_l * 100, 2), "cuota": 2.15, "tipo": "Línea Principal"}
     ]
 
     for m in universo_mercados:
@@ -156,7 +157,7 @@ def home():
 
         analisis_final.append({
             "id": p["id"], "pais": p["pais"], "liga": p["liga"],
-            "partido": p['local'] + " vs " + p['visitante'],
+            "partido": str(p['local']) + " vs " + str(p['visitante']),
             "fecha": p["fecha"], "hora": p["hora"],
             "opcion_1": op1, "opcion_2": op2,
             "xg_l": xg_l, "xg_v": xg_v, "stake": stake, "resumen_ia": resumen_ia
@@ -238,4 +239,108 @@ HTML_TEMPLATE = """
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-terminal); color: var(--text-main); padding: 12px; margin: 0; }
         .terminal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; }
         .logo { font-size: 15px; font-weight: 900; color: var(--accent-cyan); letter-spacing: 1px; }
-        .status-dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; display: inline-block;
+        .status-dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--accent-green); }
+        
+        .nav-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+        .nav-btn { background: var(--card-bg); color: var(--text-muted); border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; font-size: 12px; text-align: center; text-decoration: none; font-weight: 700; }
+        .nav-btn.active { background: #0369a1; color: white; border-color: var(--accent-cyan); }
+
+        .terminal-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 15px; }
+        label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px; font-weight: 800; }
+        input { background: #030712; color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; font-size: 13px; width: 100%; margin-bottom: 8px; box-sizing: border-box; outline: none; }
+        input:focus { border-color: var(--accent-cyan); }
+
+        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 12px; position: relative; }
+        .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent-cyan); border-radius: 4px 0 0 4px; }
+        
+        .tag-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; font-weight: 700; }
+        .match-title { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+        
+        .pick-box { background: #030712; border: 1px solid var(--border-color); padding: 10px; border-radius: 6px; margin-top: 8px; }
+        .ev-badge { color: var(--accent-green); font-weight: 800; }
+        
+        .ai-terminal { background: #030712; border-left: 3px solid var(--accent-cyan); padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 11px; color: #d1d5db; line-height: 1.4; white-space: pre-line; }
+        .btn-exec { background: var(--accent-cyan); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: 900; width: 100%; cursor: pointer; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    </style>
+</head>
+<body>
+    <div class="terminal-header">
+        <div class="logo">⚡ SOTELOK // ADVANCED.AI</div>
+        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">DUAL-VECTOR +EV</span></div>
+    </div>
+
+    <div class="nav-bar">
+        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📊 Terminal En Vivo</a>
+        <a href="/rendimiento" class="nav-btn {% if seccion == 'rendimiento' %}active{% endif %}">📈 Rendimiento & Kelly</a>
+    </div>
+
+    {% if seccion == 'live' %}
+    <div class="terminal-box">
+        <form method="GET" action="/">
+            <label>📅 Fecha de Análisis</label>
+            <input type="date" name="fecha" value="{{ fecha_seleccionada }}" onchange="this.form.submit()">
+        </form>
+    </div>
+
+    <div class="terminal-box" style="border-color: #0369a1;">
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🔍 Registrar Encuentro & Generar Análisis IA</div>
+        <form method="POST" action="/agregar">
+            <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
+            <label>Equipo Local</label>
+            <input type="text" name="local" placeholder="Ej. Real Betis" required>
+            <label>Equipo Visitante</label>
+            <input type="text" name="visitante" placeholder="Ej. Copenhague" required>
+            <label>Hora Programada</label>
+            <input type="text" name="hora" value="21:00" required>
+            <button type="submit" class="btn-exec">Sintetizar IA Cognitiva (2 Opciones +EV)</button>
+        </form>
+    </div>
+
+    {% for item in resultados %}
+    <div class="card">
+        <div class="tag-row">
+            <span>{{ item.pais }} // {{ item.liga }}</span>
+            <span>⏰ {{ item.hora }}</span>
+        </div>
+        <div class="match-title">⚔️ {{ item.partido }}</div>
+        <div style="font-size: 10px; color: var(--text-muted);">xG Local: <b>{{ item.xg_l }}</b> | xG Visitante: <b>{{ item.xg_v }}</b> | Stake Kelly Recomendado: <b style="color: var(--accent-cyan);">{{ item.stake }}%</b></div>
+        
+        <div class="pick-box" style="border-color: #38bdf8;">
+            <div style="color: #facc15; font-weight: 800; font-size: 12px;">🌟 OPCIÓN 1 (PRINCIPAL): {{ item.opcion_1.mercado }}</div>
+            <div style="font-size: 11px; margin-top: 4px;">Probabilidad: <b>{{ item.opcion_1.prob }}%</b> | Cuota: <b>{{ item.opcion_1.cuota }}</b> | Valor Esperado: <span class="ev-badge">+{{ item.opcion_1.ev }}%</span></div>
+        </div>
+
+        <div class="pick-box" style="border-color: #10b981; margin-top: 6px;">
+            <div style="color: #34d399; font-weight: 800; font-size: 12px;">🚀 OPCIÓN 2 (COBERTURA / ALTA CUOTA): {{ item.opcion_2.mercado }}</div>
+            <div style="font-size: 11px; margin-top: 4px;">Probabilidad: <b>{{ item.opcion_2.prob }}%</b> | Cuota: <b>{{ item.opcion_2.cuota }}</b> | Valor Esperado: <span class="ev-badge">+{{ item.opcion_2.ev }}%</span></div>
+        </div>
+
+        <div class="ai-terminal">
+            <b style="color: var(--accent-cyan);">🧠 DICTAMEN DE LA IA COGNITIVA:</b>
+            {{ item.resumen_ia }}
+        </div>
+    </div>
+    {% else %}
+    <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
+        📭 TERMINAL VACÍA. Registra un partido arriba para desplegar el análisis de IA de Doble Vector.
+    </div>
+    {% endfor %}
+
+    {% else %}
+    <div style="font-size: 14px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📈 Histórico de Modelos & Kelly</div>
+    {% for h in historial %}
+    <div class="card" style="border-left-color: var(--accent-green);">
+        <div class="match-title">{{ h.partido }}</div>
+        <div style="font-size: 11px; color: var(--text-muted); background: #030712; padding: 8px; border-radius: 6px; margin-top: 6px;">
+            🎯 Pick: <b>{{ h.pick }}</b> | Cuota: {{ h.cuota }} | EV: {{ h.ev }} | Stake: {{ h.stake }}<br>
+            Estado: <b style="color: var(--accent-green);">{{ h.resultado }}</b>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+</body>
+</html>
+"""
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
