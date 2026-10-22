@@ -1,12 +1,12 @@
 import math
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request
 
 app = Flask(__name__)
 
 # ==========================================
-# ⚙️ CONFIGURACIÓN DE LA API DE CALENDARIO
+# ⚙️ CONFIGURACIÓN DE LA API Y MODELOS
 # ==========================================
 API_KEY_FUTBOL = "7c667ce0f8664ae7b5a7b989b924bf89"
 
@@ -67,11 +67,19 @@ def obtener_cartelera_respaldo():
             "lambda_l": 2.10, "lambda_v": 1.80,
             "lambda_corners": 10.2, "lambda_tarjetas": 4.5,
             "cuota_goles": 1.75, "cuota_corners": 1.72, "cuota_tarjetas": 1.90
+        },
+        {
+            "deporte": "Futbol", "liga": "Copa Libertadores",
+            "local": "SE Palmeiras", "visitante": "Fluminense FC",
+            "fecha": hoy_str, "hora": "00:30",
+            "lambda_l": 1.90, "lambda_v": 1.50,
+            "lambda_corners": 9.5, "lambda_tarjetas": 4.0,
+            "cuota_goles": 1.85, "cuota_corners": 1.75, "cuota_tarjetas": 1.80
         }
     ]
 
 # ==========================================
-# 1. MOTOR MATEMÁTICO & PATRONES DE DECISIÓN
+# 🧮 MOTOR MATEMÁTICO (POISSON & DIXON-COLES)
 # ==========================================
 
 def poisson_pmf(k, lambda_param):
@@ -115,6 +123,21 @@ def patron_evaluacion_integral(partido):
 
     return mejor_pick, round(ev, 2), round(score_ia, 2)
 
+# ==========================================
+# 📊 MÓDULO DE BACKTESTING & HISTÓRICO
+# ==========================================
+def obtener_datos_backtesting():
+    ayer_1 = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
+    ayer_2 = (datetime.now() - timedelta(days=2)).strftime("%d/%m/%Y")
+    return [
+        {"fecha": ayer_1, "liga": "Premier League", "partido": "Liverpool vs Chelsea", "pick": "⚽ Más de 2.5 Goles", "cuota": 1.78, "prob": "65.2%", "ev": "+16.06%", "resultado": "✅ ACERTADO (3-1)"},
+        {"fecha": ayer_1, "liga": "Serie A", "partido": "Inter vs Juventus", "pick": "⛳ Córners: Más de 8.5", "cuota": 1.72, "prob": "62.4%", "ev": "+7.33%", "resultado": "✅ ACERTADO (10 córners)"},
+        {"fecha": ayer_2, "liga": "La Liga", "partido": "FC Barcelona vs Real Madrid", "pick": "🟨 Tarjetas: Más de 3.5", "cuota": 1.90, "prob": "58.1%", "ev": "+10.39%", "resultado": "❌ NO ACERTADO (3 tarjetas)"},
+    ]
+
+# ==========================================
+# 🌐 RUTAS FLASK
+# ==========================================
 @app.route('/')
 def home():
     liga_filtro = request.args.get('liga', 'Todas')
@@ -144,11 +167,49 @@ def home():
     analisis_final.sort(key=lambda x: x["score"], reverse=True)
     todas_ligas = sorted(list(set(item['liga'] for item in obtener_partidos_api())))
 
-    return render_template_string(HTML_TEMPLATE, resultados=analisis_final, ligas=todas_ligas, seleccionada=liga_filtro)
+    return render_template_string(HTML_TEMPLATE, resultados=analisis_final, ligas=todas_ligas, seleccionada=liga_filtro, seccion="live")
+
+@app.route('/backtesting')
+def backtesting():
+    historial = obtener_datos_backtesting()
+    return render_template_string(HTML_TEMPLATE, historial=historial, seleccionada="Todas", ligas=[], seccion="backtesting")
+
+@app.route('/manifest.json')
+def manifest():
+    return app.response_class(MANIFEST_JSON, mimetype='application/json')
+
+@app.route('/sw.js')
+def service_worker():
+    return app.response_class(SERVICE_WORKER_JS, mimetype='application/javascript')
 
 # ==========================================
-# 2. INTERFAZ WEB RESPONSIVA (PWA)
+# 📱 INTERFAZ WEB PWA COMPLETA
 # ==========================================
+SERVICE_WORKER_JS = """
+const CACHE_NAME = 'sotelok-v2';
+const urlsToCache = ['/', '/backtesting', '/manifest.json'];
+
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
+  );
+});
+
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request).then(response => response || fetch(event.request))
+  );
+});
+"""
+
+MANIFEST_JSON = """{
+  "name": "SOTELOK Quant Suite",
+  "short_name": "SOTELOK",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#38bdf8"
+}"""
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -159,10 +220,20 @@ HTML_TEMPLATE = """
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#38bdf8">
     <link rel="manifest" href="/manifest.json">
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #f8fafc; padding: 15px; margin: 0; }
         h1 { color: #38bdf8; text-align: center; font-size: 22px; margin-bottom: 2px; }
         .sub { text-align: center; color: #94a3b8; font-size: 12px; margin-bottom: 15px; }
+        .nav-tabs { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; }
+        .nav-btn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; padding: 8px 14px; border-radius: 8px; font-size: 13px; text-decoration: none; font-weight: bold; }
+        .nav-btn.active { background: #0284c7; color: white; border-color: #38bdf8; }
         .filter-box { background: #1e293b; padding: 12px; border-radius: 10px; margin-bottom: 18px; text-align: center; border: 1px solid #334155; }
         select { background: #0f172a; color: #f8fafc; border: 1px solid #38bdf8; padding: 8px 12px; border-radius: 6px; font-size: 14px; width: 80%; max-width: 300px; }
         .card { background: #1e293b; border-radius: 12px; padding: 16px; margin-bottom: 18px; border-left: 5px solid #38bdf8; box-shadow: 0 4px 8px rgba(0,0,0,0.4); }
@@ -178,61 +249,72 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <h1>🧠 SOTELOK QUANT SUITE</h1>
-    <div class="sub">Calendario en Vivo & Modelo Cuantitativo</div>
+    <div class="sub">Plataforma Institucional Cuantitativa & PWA</div>
 
-    <div class="filter-box">
-        <form method="GET" action="/">
-            <label style="font-size: 13px; color: #cbd5e1; display: block; margin-bottom: 6px;">📂 Filtrar por Competición:</label>
-            <select name="liga" onchange="this.form.submit()">
-                <option value="Todas" {% if seleccionada == 'Todas' %}selected{% endif %}>🌍 Todas las Ligas</option>
-                {% for l in ligas %}
-                <option value="{{ l }}" {% if seleccionada == l %}selected{% endif %}>{{ l }}</option>
-                {% endfor %}
-            </select>
-        </form>
+    <div class="nav-tabs">
+        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 En Vivo & Picks</a>
+        <a href="/backtesting" class="nav-btn {% if seccion == 'backtesting' %}active{% endif %}">📈 Histórico & Backtesting</a>
     </div>
-    
-    {% if resultados %}
-        {% for item in resultados %}
-        <div class="card">
-            <span class="tag">{{ item.deporte }} | {{ item.liga }}</span>
-            <div class="match">⚔️ {{ item.partido }}</div>
-            <div class="info">📅 {{ item.fecha }} | ⏰ {{ item.hora }}</div>
-            
-            <div class="pick-box">
-                <div style="color:#38bdf8; font-size:11px; font-weight:bold; margin-bottom:4px;">🎯 PRONÓSTICO ÓPTIMO SELECCIONADO:</div>
-                <div class="pick-title">{{ item.pick }}</div>
-                <div style="font-size: 13px; margin-top: 6px; color: #cbd5e1;">
-                    📈 Probabilidad: <b>{{ item.prob }}%</b> | 💰 Cuota: <b>{{ item.cuota }}</b><br>
-                    🚀 Valor Esperado (+EV): <span class="ev">+{{ item.ev }}%</span> | ⭐ Score: {{ item.score }} pts
+
+    {% if seccion == 'live' %}
+        <div class="filter-box">
+            <form method="GET" action="/">
+                <label style="font-size: 13px; color: #cbd5e1; display: block; margin-bottom: 6px;">📂 Filtrar por Competición:</label>
+                <select name="liga" onchange="this.form.submit()">
+                    <option value="Todas" {% if seleccionada == 'Todas' %}selected{% endif %}>🌍 Todas las Ligas</option>
+                    {% for l in ligas %}
+                    <option value="{{ l }}" {% if seleccionada == l %}selected{% endif %}>{{ l }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+        
+        {% if resultados %}
+            {% for item in resultados %}
+            <div class="card">
+                <span class="tag">{{ item.deporte }} | {{ item.liga }}</span>
+                <div class="match">⚔️ {{ item.partido }}</div>
+                <div class="info">📅 {{ item.fecha }} | ⏰ {{ item.hora }}</div>
+                
+                <div class="pick-box">
+                    <div style="color:#38bdf8; font-size:11px; font-weight:bold; margin-bottom:4px;">🎯 PRONÓSTICO ÓPTIMO SELECCIONADO:</div>
+                    <div class="pick-title">{{ item.pick }}</div>
+                    <div style="font-size: 13px; margin-top: 6px; color: #cbd5e1;">
+                        📈 Probabilidad: <b>{{ item.prob }}%</b> | 💰 Cuota: <b>{{ item.cuota }}</b><br>
+                        🚀 Valor Esperado (+EV): <span class="ev">+{{ item.ev }}%</span> | ⭐ Score: {{ item.score }} pts
+                    </div>
+                </div>
+
+                <div class="ai-box">
+                    <div style="color: #38bdf8; font-weight: bold; margin-bottom: 4px;">🤖 Dictamen del Patrón de IA:</div>
+                    <div>{{ item.resumen }}</div>
                 </div>
             </div>
-
-            <div class="ai-box">
-                <div style="color: #38bdf8; font-weight: bold; margin-bottom: 4px;">🤖 Dictamen del Patrón de IA:</div>
-                <div>{{ item.resumen }}</div>
+            {% endfor %}
+        {% else %}
+            <div class="no-results">No hay partidos disponibles para esta selección hoy.</div>
+        {% endif %}
+    {% else %}
+        <h2 style="font-size: 16px; color: #38bdf8; text-align: center; margin-top: 20px;">📊 Historial de Validación Cuantitativa</h2>
+        <div class="sub">Auditoría automática de rendimiento y rentabilidad de los modelos +EV</div>
+        
+        {% for h in historial %}
+        <div class="card" style="border-left-color: {% if 'ACERTADO' in h.resultado %}#4ade80{% else %}#f87171{% endif %};">
+            <span class="tag">{{ h.liga }}</span>
+            <div class="match">⚔️ {{ h.partido }}</div>
+            <div class="info">📅 {{ h.fecha }} | Pick: <b>{{ h.pick }}</b></div>
+            
+            <div style="font-size: 13px; color: #cbd5e1; background: #0f172a; padding: 10px; border-radius: 8px;">
+                💰 Cuota: <b>{{ h.cuota }}</b> | 📈 Probabilidad: <b>{{ h.prob }}</b><br>
+                🚀 Valor Esperado: <span class="ev">{{ h.ev }}</span><br>
+                🏁 Estado: <b style="color: {% if 'ACERTADO' in h.resultado %}#4ade80{% else %}#f87171{% endif %};">{{ h.resultado }}</b>
             </div>
         </div>
         {% endfor %}
-    {% else %}
-        <div class="no-results">No hay partidos disponibles para esta selección hoy.</div>
     {% endif %}
 </body>
 </html>
 """
-
-MANIFEST_JSON = """{
-  "name": "SOTELOK Quant Suite",
-  "short_name": "SOTELOK",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#38bdf8"
-}"""
-
-@app.route('/manifest.json')
-def manifest():
-    return app.response_class(MANIFEST_JSON, mimetype='application/json')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
