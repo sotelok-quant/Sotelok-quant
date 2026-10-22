@@ -6,13 +6,10 @@ from flask import Flask, render_template_string, request
 app = Flask(__name__)
 
 # ==========================================
-# 🌐 CONECTOR DE PARTIDOS REALES EN VIVO (THE SPORTS DB & API LIBRE)
+# 🌐 CONECTOR DE PARTIDOS REALES EN VIVO
 # ==========================================
 def obtener_partidos_reales_en_vivo(fecha_elegida):
-    """Consulta en tiempo real los eventos deportivos oficiales de la fecha elegida
-    utilizando pasarelas públicas de eventos deportivos reales."""
-    
-    # Formatear la fecha a YYYY-MM-DD
+    """Consulta en tiempo real los eventos deportivos oficiales de la fecha elegida."""
     if not fecha_elegida:
         fecha_elegida = datetime.now().strftime("%Y-%m-%d")
         
@@ -25,7 +22,6 @@ def obtener_partidos_reales_en_vivo(fecha_elegida):
 
     partidos_encontrados = []
 
-    # 1. Intentar conectar con la API pública de eventos en vivo por fecha
     url_api = f"https://www.thesportsdb.com/api/v1/json/3/eventsday.php?d={fecha_elegida}&s=Soccer"
     
     try:
@@ -54,6 +50,5 @@ def obtener_partidos_reales_en_vivo(fecha_elegida):
                         "fecha": fecha_str_visual,
                         "hora": hora_utc,
                         "lambda_l": 1.85, "lambda_v": 1.55,
-                        "lambda_corners": round(10.1, 1),
-                        "lambda_tarjetas": round(4.2, 1),
-                        "cuota_
+                        "lambda_corners": 10.1, "lambda_tarjetas": 4.2,
+                        "cuota_goles": 1.78, "cuota_corners": 1.75, "cuota_tar
