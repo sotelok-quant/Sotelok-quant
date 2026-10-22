@@ -8,13 +8,11 @@ app = Flask(__name__)
 # ==========================================
 # ⚙️ CONFIGURACIÓN DE LA API DE CALENDARIO
 # ==========================================
-# Puedes registrarte gratis en https://www.football-data.org/ para obtener tu API Key propia.
-# Si dejas la clave vacía, la app usará el calendario sincronizado de respaldo.
-API_KEY_FUTBOL = "TU_API_KEY_AQUI" 
+API_KEY_FUTBOL = "7c667ce0f8664ae7b5a7b989b924bf89"
 
 def obtener_partidos_api():
     """Consulta los partidos del día actual usando la API externa."""
-    if API_KEY_FUTBOL == "TU_API_KEY_AQUI" or not API_KEY_FUTBOL:
+    if not API_KEY_FUTBOL:
         return obtener_cartelera_respaldo()
     
     url = "https://api.football-data.org/v4/matches"
@@ -27,13 +25,11 @@ def obtener_partidos_api():
             partidos_formateados = []
             
             for m in data.get("matches", []):
-                # Extraer datos relevantes de la API
                 competicion = m.get("competition", {}).get("name", "Liga Principal")
                 local = m.get("homeTeam", {}).get("name", "Local")
                 visitante = m.get("awayTeam", {}).get("name", "Visitante")
                 utc_date = m.get("utcDate", "")
                 
-                # Formatear fecha y hora
                 try:
                     dt = datetime.strptime(utc_date, "%Y-%m-%dT%H:%M:%SZ")
                     fecha_str = dt.strftime("%d/%m/%Y")
@@ -49,7 +45,6 @@ def obtener_partidos_api():
                     "visitante": visitante,
                     "fecha": fecha_str,
                     "hora": hora_str,
-                    # Parámetros base estimados para el motor cuantitativo
                     "lambda_l": 1.75, "lambda_v": 1.45,
                     "lambda_corners": 9.8, "lambda_tarjetas": 4.2,
                     "cuota_goles": 1.80, "cuota_corners": 1.75, "cuota_tarjetas": 1.70
@@ -63,29 +58,20 @@ def obtener_partidos_api():
     return obtener_cartelera_respaldo()
 
 def obtener_cartelera_respaldo():
-    """Cartelera de respaldo sincronizada para asegurar estabilidad."""
     hoy_str = datetime.now().strftime("%d/%m/%Y")
     return [
         {
-            "deporte": "Futbol", "liga__": "UEFA Champions League", "liga": "UEFA Champions League",
+            "deporte": "Futbol", "liga": "UEFA Champions League",
             "local": "Real Madrid", "visitante": "Bayern Múnich",
             "fecha": hoy_str, "hora": "21:00",
             "lambda_l": 2.10, "lambda_v": 1.80,
             "lambda_corners": 10.2, "lambda_tarjetas": 4.5,
             "cuota_goles": 1.75, "cuota_corners": 1.72, "cuota_tarjetas": 1.90
-        },
-        {
-            "deporte": "Futbol", "liga": "Premier League",
-            "local": "Manchester City", "visitante": "Arsenal",
-            "fecha": hoy_str, "hora": "18:30",
-            "lambda_l": 1.85, "lambda_v": 1.70,
-            "lambda_corners": 10.5, "lambda_tarjetas": 3.8,
-            "cuota_goles": 1.78, "cuota_corners": 1.85, "cuota_tarjetas": 1.75
         }
     ]
 
 # ==========================================
-# 2. MOTOR MATEMÁTICO & PATRONES DE DECISIÓN
+# 1. MOTOR MATEMÁTICO & PATRONES DE DECISIÓN
 # ==========================================
 
 def poisson_pmf(k, lambda_param):
@@ -161,7 +147,7 @@ def home():
     return render_template_string(HTML_TEMPLATE, resultados=analisis_final, ligas=todas_ligas, seleccionada=liga_filtro)
 
 # ==========================================
-# 3. INTERFAZ WEB RESPONSIVA (PWA)
+# 2. INTERFAZ WEB RESPONSIVA (PWA)
 # ==========================================
 
 HTML_TEMPLATE = """
