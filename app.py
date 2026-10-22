@@ -76,10 +76,6 @@ def dixon_coles_tau(x, y, ll, lv, rho=-0.13):
     return 1.0
 
 def motor_cognitivo_sotelok_pro(p):
-    """
-    Motor Avanzado de Inteligencia Predictiva: 
-    Evalúa múltiples vectores estadísticos y extrae las 2 MEJORES OPCIONES de alto valor esperado (+EV).
-    """
     tempo = p["factor_tempo"]
     lambda_l = max(0.4, p["fuerza_local"] * p["defensa_visitante"] * tempo)
     lambda_v = max(0.4, p["fuerza_visitante"] * p["defensa_local"] * tempo)
@@ -111,22 +107,18 @@ def motor_cognitivo_sotelok_pro(p):
         {"mercado": f"🏆 Victoria Directa Local ({p['local']})", "prob": round(p_1x2_l * 100, 2), "cuota": 2.15, "tipo": "Línea Principal"}
     ]
 
-    # Calcular el Valor Esperado (+EV) para cada mercado
     for m in universo_mercados:
         m["ev"] = round((((m["prob"] / 100.0) * m["cuota"]) - 1.0) * 100, 2)
 
-    # Ordenar por combinación de EV y probabilidad para extraer el TOP 2 absoluto
     mercados_ordenados = sorted(universo_mercados, key=lambda x: (x["prob"] * 0.65) + (x["ev"] * 3.2), reverse=True)
     
     opcion_1 = mercados_ordenados[0]
     opcion_2 = mercados_ordenados[1]
 
-    # Kelly Fraccional para la Opción 1
     prob_dec = opcion_1["prob"] / 100.0
     kelly_fraction = max(0.0, ((prob_dec * opcion_1["cuota"]) - 1.0) / (opcion_1["cuota"] - 1.0)) * 0.25
     stake_sugerido = round(kelly_fraction * 100, 1)
 
-    # Redacción del Dictamen Generado por la IA Avanzada
     resumen_ia = (
         f"ANÁLISIS DE LA IA COGNITIVA SOTELOK:\n"
         f"Sintetizando la matriz de Poisson y Dixon-Coles con la métrica de Tempo Dinámico, se detecta "
@@ -214,15 +206,4 @@ def rendimiento():
     if not historial:
         historial = [
             {"partido": "Real Betis vs Copenhague", "pick": "🎯 Marcador Exacto Modelado: 2-1", "cuota": 7.80, "prob": "19.2%", "ev": "+49.8%", "stake": "1.5%", "resultado": "✅ ACERTADO (2-1)"},
-            {"partido": "AS Roma vs Athletic Club", "pick": "🔥 BTTS (Ambos Anotan + Ritmo Alto)", "cuota": 1.78, "prob": "68.5%", "ev": "+21.9%", "stake": "3.0%", "resultado": "✅ ACERTADO (1-1)"}
-        ]
-
-    return render_template_string(HTML_TEMPLATE, resultados=[], fecha_seleccionada="", historial=historial, bankroll=bank, roi=roi, seccion="rendimiento")
-
-@app.route('/manifest.json')
-def manifest():
-    return app.response_class('{"name": "SOTELOK Quant Suite", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
-
-@app.route('/sw.js')
-def sw():
-    return app.response_class("self.addEventListener('
+            {"partido": "AS Roma vs Athletic Club", "pick": "🔥 BTTS (Ambos Anotan + Ritmo Alto)", "cuota
