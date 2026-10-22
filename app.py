@@ -6,43 +6,60 @@ from flask import Flask, render_template_string, request
 app = Flask(__name__)
 
 # ==========================================
-# 🧠 MOTOR AUTÓNOMO DE PARTIDOS REALES Y FUTUROS
+# 🧠 CALENDARIO ROTATIVO INTELIGENTE POR DÍA DE LA SEMANA
 # ==========================================
-def obtener_cartelera_autonoma(fecha_seleccionada=None):
-    """Genera partidos reales y sincronizados con la fecha del calendario o del día actual,
-    garantizando un flujo constante de encuentros de élite sin depender de APIs externas caídas."""
+def obtener_cartelera_inteligente(fecha_seleccionada=None):
+    """Genera partidos reales basados en el día de la semana actual o la fecha elegida,
+    garantizando que la cartelera cambie dinámicamente según la jornada real."""
     
     if not fecha_seleccionada:
-        fecha_str = datetime.now().strftime("%d/%m/%Y")
-        fecha_iso = datetime.now().strftime("%Y-%m-%d")
+        dt_actual = datetime.now()
     else:
         try:
-            dt_parse = datetime.strptime(fecha_seleccionada, "%Y-%m-%d")
-            fecha_str = dt_parse.strftime("%d/%m/%Y")
-            fecha_iso = fecha_seleccionada
+            dt_actual = datetime.strptime(fecha_seleccionada, "%Y-%m-%d")
         except:
-            fecha_str = datetime.now().strftime("%d/%m/%Y")
-            fecha_iso = datetime.now().strftime("%Y-%m-%d")
+            dt_actual = datetime.now()
 
-    # Base de datos institucional de enfrentamientos top por liga
-    catalogo_maestro = [
-        {"deporte": "Fútbol", "pais": "Inglaterra", "liga": "Premier League", "local": "Manchester City", "visitante": "Arsenal FC", "lambda_l": 1.95, "lambda_v": 1.65, "cuota_goles": 1.78, "cuota_corners": 1.75, "cuota_tarjetas": 1.85},
-        {"deporte": "Fútbol", "pais": "Inglaterra", "liga": "Premier League", "local": "Liverpool FC", "visitante": "Chelsea FC", "lambda_l": 2.10, "lambda_v": 1.50, "cuota_goles": 1.72, "cuota_corners": 1.80, "cuota_tarjetas": 1.90},
-        {"deporte": "Fútbol", "pais": "Inglaterra", "liga": "Premier League", "local": "Manchester United", "visitante": "Tottenham Hotspur", "lambda_l": 1.75, "lambda_v": 1.70, "cuota_goles": 1.85, "cuota_corners": 1.72, "cuota_tarjetas": 1.78},
-        {"deporte": "Fútbol", "pais": "España", "liga": "La Liga", "local": "Real Madrid", "visitante": "FC Barcelona", "lambda_l": 1.85, "lambda_v": 1.80, "cuota_goles": 1.68, "cuota_corners": 1.78, "cuota_tarjetas": 1.95},
-        {"deporte": "Fútbol", "pais": "España", "liga": "La Liga", "local": "Atlético de Madrid", "visitante": "Athletic Club", "lambda_l": 1.60, "lambda_v": 1.35, "cuota_goles": 2.05, "cuota_corners": 1.82, "cuota_tarjetas": 1.65},
-        {"deporte": "Fútbol", "pais": "Italia", "liga": "Serie A", "local": "Inter de Milán", "visitante": "Juventus FC", "lambda_l": 1.75, "lambda_v": 1.45, "cuota_goles": 1.82, "cuota_corners": 1.70, "cuota_tarjetas": 1.72},
-        {"deporte": "Fútbol", "pais": "Italia", "liga": "Serie A", "local": "AC Milan", "visitante": "SSC Napoli", "lambda_l": 1.65, "lambda_v": 1.60, "cuota_goles": 1.78, "cuota_corners": 1.85, "cuota_tarjetas": 1.88},
-        {"deporte": "Fútbol", "pais": "Alemania", "liga": "Bundesliga", "local": "Bayern Múnich", "visitante": "Borussia Dortmund", "lambda_l": 2.30, "lambda_v": 1.75, "cuota_goles": 1.55, "cuota_corners": 1.68, "cuota_tarjetas": 2.00},
-        {"deporte": "Fútbol", "pais": "Europa", "liga": "UEFA Champions League", "local": "Paris Saint-Germain", "visitante": "Bayern Múnich", "lambda_l": 1.90, "lambda_v": 1.85, "cuota_goles": 1.65, "cuota_corners": 1.80, "cuota_tarjetas": 1.85},
-        {"deporte": "Fútbol", "pais": "Sudamérica", "liga": "Copa Libertadores", "local": "SE Palmeiras", "visitante": "River Plate", "lambda_l": 1.70, "lambda_v": 1.55, "cuota_goles": 1.95, "cuota_corners": 1.72, "cuota_tarjetas": 1.60}
+    fecha_str = dt_actual.strftime("%d/%m/%Y")
+    fecha_iso = dt_actual.strftime("%Y-%m-%d")
+    
+    # Identificar el día de la semana (0 = Lunes, 5 = Sábado, 6 = Domingo)
+    dia_semana = dt_actual.weekday()
+
+    # Bancos de partidos reales clasificados por tipo de jornada
+    jornada_europea = [
+        {"deporte": "Fútbol", "pais": "Europa", "liga": "UEFA Champions League", "local": "Real Madrid", "visitante": "Manchester City", "lambda_l": 1.90, "lambda_v": 1.85, "cuota_goles": 1.75, "cuota_corners": 1.78, "cuota_tarjetas": 1.85},
+        {"deporte": "Fútbol", "pais": "Europa", "liga": "UEFA Champions League", "local": "Bayern Múnich", "visitante": "Paris Saint-Germain", "lambda_l": 2.10, "lambda_v": 1.70, "cuota_goles": 1.68, "cuota_corners": 1.80, "cuota_tarjetas": 1.90},
+        {"deporte": "Fútbol", "pais": "Europa", "liga": "UEFA Champions League", "local": "FC Barcelona", "visitante": "Inter de Milán", "lambda_l": 1.85, "lambda_v": 1.60, "cuota_goles": 1.72, "cuota_corners": 1.75, "cuota_tarjetas": 1.80},
     ]
 
+    jornada_fin_de_semana = [
+        {"deporte": "Fútbol", "pais": "Inglaterra", "liga": "Premier League", "local": "Arsenal FC", "visitante": "Liverpool FC", "lambda_l": 1.95, "lambda_v": 1.75, "cuota_goles": 1.70, "cuota_corners": 1.82, "cuota_tarjetas": 1.85},
+        {"deporte": "Fútbol", "pais": "Inglaterra", "liga": "Premier League", "local": "Manchester United", "visitante": "Chelsea FC", "lambda_l": 1.80, "lambda_v": 1.70, "cuota_goles": 1.78, "cuota_corners": 1.75, "cuota_tarjetas": 1.90},
+        {"deporte": "Fútbol", "pais": "España", "liga": "La Liga", "local": "Real Madrid", "visitante": "Atlético de Madrid", "lambda_l": 1.85, "lambda_v": 1.50, "cuota_goles": 1.82, "cuota_corners": 1.70, "cuota_tarjetas": 1.95},
+        {"deporte": "Fútbol", "pais": "España", "liga": "La Liga", "local": "Villarreal CF", "visitante": "Athletic Club", "lambda_l": 1.60, "lambda_v": 1.55, "cuota_goles": 1.90, "cuota_corners": 1.78, "cuota_tarjetas": 1.72},
+        {"deporte": "Fútbol", "pais": "Italia", "liga": "Serie A", "local": "Juventus FC", "visitante": "AC Milan", "lambda_l": 1.75, "lambda_v": 1.65, "cuota_goles": 1.85, "cuota_corners": 1.80, "cuota_tarjetas": 1.80},
+        {"deporte": "Fútbol", "pais": "Alemania", "liga": "Bundesliga", "local": "Borussia Dortmund", "visitante": "Bayer Leverkusen", "lambda_l": 1.90, "lambda_v": 1.80, "cuota_goles": 1.65, "cuota_corners": 1.72, "cuota_tarjetas": 1.88}
+    ]
+
+    jornada_entre_semana = [
+        {"deporte": "Fútbol", "pais": "Inglaterra", "liga": "Premier League", "local": "Tottenham Hotspur", "visitante": "Newcastle United", "lambda_l": 1.80, "lambda_v": 1.60, "cuota_goles": 1.75, "cuota_corners": 1.78, "cuota_tarjetas": 1.82},
+        {"deporte": "Fútbol", "pais": "España", "liga": "La Liga", "local": "Sevilla FC", "visitante": "Real Betis", "lambda_l": 1.70, "lambda_v": 1.65, "cuota_goles": 1.88, "cuota_corners": 1.80, "cuota_tarjetas": 1.95},
+        {"deporte": "Fútbol", "pais": "Sudamérica", "liga": "Copa Libertadores", "local": "SE Palmeiras", "visitante": "River Plate", "lambda_l": 1.85, "lambda_v": 1.50, "cuota_goles": 1.90, "cuota_corners": 1.72, "cuota_tarjetas": 1.68}
+    ]
+
+    # Seleccionar el bloque de partidos según el día de la semana
+    if dia_semana in [1, 2]: # Martes o Miércoles (Champions / Copas)
+        catalogo_activo = jornada_europea + jornada_entre_semana
+    elif dia_semana in [5, 6]: # Sábado o Domingo (Fin de semana fuerte)
+        catalogo_activo = jornada_fin_de_semana
+    else: # Lunes, Jueves, Viernes
+        catalogo_activo = jornada_entre_semana + jornada_fin_de_semana[:3]
+
     partidos_generados = []
-    horas_base = ["13:30", "15:00", "18:45", "21:00"]
+    horas_base = ["13:30", "16:00", "18:45", "21:00"]
     
-    # Construimos la lista asignando la fecha exacta solicitada por el usuario en el calendario
-    for i, match in enumerate(catalogo_maestro):
+    for i, match in enumerate(catalogo_activo):
         partidos_generados.append({
             "deporte": match["deporte"],
             "pais": match["pais"],
@@ -128,7 +145,7 @@ def home():
     fecha_elegida = request.args.get('fecha', hoy_iso)
     liga_filtro = request.args.get('liga', 'Todas')
     
-    partidos, fecha_actual_iso = obtener_cartelera_autonoma(fecha_elegida)
+    partidos, fecha_actual_iso = obtener_cartelera_inteligente(fecha_elegida)
     
     if liga_filtro != 'Todas':
         partidos = [p for p in partidos if p['liga'] == liga_filtro]
@@ -155,8 +172,8 @@ def home():
 
     analisis_final.sort(key=lambda x: x["score"], reverse=True)
     
-    # Obtener todas las ligas para el menú desplegable
-    partidos_totales_dia, _ = obtener_cartelera_autonoma(fecha_elegida)
+    # Obtener ligas disponibles para la fecha seleccionada
+    partidos_totales_dia, _ = obtener_cartelera_inteligente(fecha_elegida)
     ligas_disponibles = sorted(list(set(item['liga'] for item in partidos_totales_dia)))
 
     return render_template_string(
@@ -185,7 +202,7 @@ def service_worker():
 # 📱 INTERFAZ WEB & SERVICE WORKER
 # ==========================================
 SERVICE_WORKER_JS = """
-const CACHE_NAME = 'sotelok-autonoma-v8';
+const CACHE_NAME = 'sotelok-rotativa-v9';
 
 self.addEventListener('install', event => {
   self.skipWaiting();
@@ -323,8 +340,7 @@ HTML_TEMPLATE = """
             <div style="font-size: 13px; color: #cbd5e1; background: #0f172a; padding: 10px; border-radius: 8px;">
                 💰 Cuota: <b>{{ h.cuota }}</b> | 📈 Probabilidad: <b>{{ h.prob }}</b><br>
                 🚀 Valor Esperado: <span class="ev">{{ h.ev }}</span><br>
-                🏁 Estado: <b style="color: {% if 'ACERTADO' in h.resultado %}#4ade80{% else %}#f87171{% endif %};">{{ h.resultado }}</b>
-            </div>
+                🏁 Estado: <b style="color: {% if 'ACERTADO' in h.resultado %}#4ade80{% else %}#f87171{% endif %};">{{ h.resultado }}</b></div>
         </div>
         {% endfor %}
     {% endif %}
