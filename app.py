@@ -99,12 +99,12 @@ def motor_cognitivo_sotelok_pro(p):
     marcador_probable = max(matriz_goles, key=matriz_goles.get)
 
     universo_mercados = [
-        {"mercado": f"🎯 Marcador Exacto Modelado: {marcador_probable[0]}-{marcador_probable[1]}", "prob": round(matriz_goles[marcador_probable] * 100, 2), "cuota": 7.80, "tipo": "Alta Cuota"},
+        {"mercado": "🎯 Marcador Exacto Modelado: " + str(marcador_probable[0]) + "-" + str(marcador_probable[1]), "prob": round(matriz_goles[marcador_probable] * 100, 2), "cuota": 7.80, "tipo": "Alta Cuota"},
         {"mercado": "⚽ Goles: Más de 2.5", "prob": round(p_over_25 * 100, 2), "cuota": 1.86, "tipo": "Goles"},
         {"mercado": "⚡ Goles: Más de 1.5 en el Partido", "prob": round(p_over_15 * 100, 2), "cuota": 1.34, "tipo": "Seguridad"},
         {"mercado": "🔥 Ambos Equipos Anotan (BTTS)", "prob": round(p_btts * 100, 2), "cuota": 1.78, "tipo": "Especial"},
         {"mercado": "🛡️ Cobertura: Menos de 3.5 Goles", "prob": round((1.0 - p_over_35) * 100, 2), "cuota": 1.44, "tipo": "Defensivo"},
-        {"mercado": f"🏆 Victoria Directa Local ({p['local']})", "prob": round(p_1x2_l * 100, 2), "cuota": 2.15, "tipo": "Línea Principal"}
+        {"mercado": "🏆 Victoria Directa Local (" + p['local'] + ")", "prob": round(p_1x2_l * 100, 2), "cuota": 2.15, "tipo": "Línea Principal"}
     ]
 
     for m in universo_mercados:
@@ -120,12 +120,11 @@ def motor_cognitivo_sotelok_pro(p):
     stake_sugerido = round(kelly_fraction * 100, 1)
 
     resumen_ia = (
-        f"ANÁLISIS DE LA IA COGNITIVA SOTELOK:\n"
-        f"Sintetizando la matriz de Poisson y Dixon-Coles con la métrica de Tempo Dinámico, se detecta "
-        f"un desbalance táctico favorable con un xG local proyectado de {round(lambda_l, 2)} frente a un xG visitante de {round(lambda_v, 2)}. "
-        f"El motor algorítmico ha identificado 2 Opciones de Alto Valor (+EV) para este encuentro:\n\n"
-        f"🔹 OPCIÓN 1 (Pick Principal): '{opcion_1['mercado']}' — Probabilidad: {opcion_1['prob']}% | Cuota: {opcion_1['cuota']} | Valor Esperado: +{opcion_1['ev']}%\n"
-        f"🔹 OPCIÓN 2 (Pick Alternativo / Cobertura): '{opcion_2['mercado']}' — Probabilidad: {opcion_2['prob']}% | Cuota: {opcion_2['cuota']} | Valor Esperado: +{opcion_2['ev']}%"
+        "ANÁLISIS DE LA IA COGNITIVA SOTELOK:\n"
+        "Sintetizando la matriz de Poisson y Dixon-Coles con la métrica de Tempo Dinámico, se detecta "
+        "un desbalance táctico favorable con un xG local proyectado de " + str(round(lambda_l, 2)) + " frente a un xG visitante de " + str(round(lambda_v, 2)) + ".\n\n"
+        "🔹 OPCIÓN 1 (Pick Principal): '" + str(opcion_1['mercado']) + "' — Prob: " + str(opcion_1['prob']) + "% | Cuota: " + str(opcion_1['cuota']) + " | EV: +" + str(opcion_1['ev']) + "%\n"
+        "🔹 OPCIÓN 2 (Cobertura): '" + str(opcion_2['mercado']) + "' — Prob: " + str(opcion_2['prob']) + "% | Cuota: " + str(opcion_2['cuota']) + " | EV: +" + str(opcion_2['ev']) + "%"
     )
 
     return opcion_1, opcion_2, stake_sugerido, resumen_ia, round(lambda_l, 2), round(lambda_v, 2)
@@ -157,7 +156,7 @@ def home():
 
         analisis_final.append({
             "id": p["id"], "pais": p["pais"], "liga": p["liga"],
-            "partido": f"{p['local']} vs {p['visitante']}",
+            "partido": p['local'] + " vs " + p['visitante'],
             "fecha": p["fecha"], "hora": p["hora"],
             "opcion_1": op1, "opcion_2": op2,
             "xg_l": xg_l, "xg_v": xg_v, "stake": stake, "resumen_ia": resumen_ia
@@ -206,4 +205,37 @@ def rendimiento():
     if not historial:
         historial = [
             {"partido": "Real Betis vs Copenhague", "pick": "🎯 Marcador Exacto Modelado: 2-1", "cuota": 7.80, "prob": "19.2%", "ev": "+49.8%", "stake": "1.5%", "resultado": "✅ ACERTADO (2-1)"},
-            {"partido": "AS Roma vs Athletic Club", "pick": "🔥 BTTS (Ambos Anotan + Ritmo Alto)", "cuota
+            {"partido": "AS Roma vs Athletic Club", "pick": "🔥 BTTS (Ambos Anotan + Ritmo Alto)", "cuota": 1.78, "prob": "68.5%", "ev": "+21.9%", "stake": "3.0%", "resultado": "✅ ACERTADO (1-1)"}
+        ]
+
+    return render_template_string(HTML_TEMPLATE, resultados=[], fecha_seleccionada="", historial=historial, bankroll=bank, roi=roi, seccion="rendimiento")
+
+@app.route('/manifest.json')
+def manifest():
+    return app.response_class('{"name": "SOTELOK Quant Suite", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
+
+@app.route('/sw.js')
+def sw():
+    return app.response_class('self.addEventListener("fetch", function(e) {});', mimetype='application/javascript')
+
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>SOTELOK Quant Suite - Advanced AI Engine</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            --bg-terminal: #07090e;
+            --card-bg: #111827;
+            --border-color: #1f2937;
+            --accent-cyan: #00f2fe;
+            --accent-green: #10b981;
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-terminal); color: var(--text-main); padding: 12px; margin: 0; }
+        .terminal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; }
+        .logo { font-size: 15px; font-weight: 900; color: var(--accent-cyan); letter-spacing: 1px; }
+        .status-dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; display: inline-block;
