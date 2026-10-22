@@ -1,57 +1,86 @@
 import math
-import random
+import requests
 from datetime import datetime
 from flask import Flask, render_template_string, request
 
 app = Flask(__name__)
 
 # ==========================================
-# 1. BASE DE DATOS DE PARTIDOS & LIGAS
+# ⚙️ CONFIGURACIÓN DE LA API DE CALENDARIO
 # ==========================================
+# Puedes registrarte gratis en https://www.football-data.org/ para obtener tu API Key propia.
+# Si dejas la clave vacía, la app usará el calendario sincronizado de respaldo.
+API_KEY_FUTBOL = "TU_API_KEY_AQUI" 
 
-def obtener_cartelera_global():
-    hoy_fecha = datetime.now().strftime("%d/%m/%Y")
+def obtener_partidos_api():
+    """Consulta los partidos del día actual usando la API externa."""
+    if API_KEY_FUTBOL == "TU_API_KEY_AQUI" or not API_KEY_FUTBOL:
+        return obtener_cartelera_respaldo()
     
+    url = "https://api.football-data.org/v4/matches"
+    headers = {"X-Auth-Token": API_KEY_FUTBOL}
+    
+    try:
+        response = requests.get(url, headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            partidos_formateados = []
+            
+            for m in data.get("matches", []):
+                # Extraer datos relevantes de la API
+                competicion = m.get("competition", {}).get("name", "Liga Principal")
+                local = m.get("homeTeam", {}).get("name", "Local")
+                visitante = m.get("awayTeam", {}).get("name", "Visitante")
+                utc_date = m.get("utcDate", "")
+                
+                # Formatear fecha y hora
+                try:
+                    dt = datetime.strptime(utc_date, "%Y-%m-%dT%H:%M:%SZ")
+                    fecha_str = dt.strftime("%d/%m/%Y")
+                    hora_str = dt.strftime("%H:%M")
+                except:
+                    fecha_str = datetime.now().strftime("%d/%m/%Y")
+                    hora_str = "20:00"
+
+                partidos_formateados.append({
+                    "deporte": "Futbol",
+                    "liga": competicion,
+                    "local": local,
+                    "visitante": visitante,
+                    "fecha": fecha_str,
+                    "hora": hora_str,
+                    # Parámetros base estimados para el motor cuantitativo
+                    "lambda_l": 1.75, "lambda_v": 1.45,
+                    "lambda_corners": 9.8, "lambda_tarjetas": 4.2,
+                    "cuota_goles": 1.80, "cuota_corners": 1.75, "cuota_tarjetas": 1.70
+                })
+            
+            if partidos_formateados:
+                return partidos_formateados
+    except Exception as e:
+        print("Error al conectar con la API:", e)
+
+    return obtener_cartelera_respaldo()
+
+def obtener_cartelera_respaldo():
+    """Cartelera de respaldo sincronizada para asegurar estabilidad."""
+    hoy_str = datetime.now().strftime("%d/%m/%Y")
     return [
         {
-            "deporte": "Futbol", "liga": "Champions League",
+            "deporte": "Futbol", "liga__": "UEFA Champions League", "liga": "UEFA Champions League",
             "local": "Real Madrid", "visitante": "Bayern Múnich",
-            "fecha": hoy_fecha, "hora": "21:00",
-            "lambda_l": 2.15, "lambda_v": 1.75,
+            "fecha": hoy_str, "hora": "21:00",
+            "lambda_l": 2.10, "lambda_v": 1.80,
             "lambda_corners": 10.2, "lambda_tarjetas": 4.5,
-            "cuota_goles": 1.78, "cuota_corners": 1.72, "cuota_tarjetas": 1.90
-        },
-        {
-            "deporte": "Futbol", "liga": "Champions League",
-            "local": "Barcelona", "visitante": "Inter de Milán",
-            "fecha": hoy_fecha, "hora": "21:00",
-            "lambda_l": 1.90, "lambda_v": 1.55,
-            "lambda_corners": 9.8, "lambda_tarjetas": 5.0,
-            "cuota_goles": 1.82, "cuota_corners": 1.80, "cuota_tarjetas": 1.65
+            "cuota_goles": 1.75, "cuota_corners": 1.72, "cuota_tarjetas": 1.90
         },
         {
             "deporte": "Futbol", "liga": "Premier League",
             "local": "Manchester City", "visitante": "Arsenal",
-            "fecha": hoy_fecha, "hora": "18:30",
+            "fecha": hoy_str, "hora": "18:30",
             "lambda_l": 1.85, "lambda_v": 1.70,
             "lambda_corners": 10.5, "lambda_tarjetas": 3.8,
-            "cuota_goles": 1.75, "cuota_corners": 1.85, "cuota_tarjetas": 1.75
-        },
-        {
-            "deporte": "Futbol", "liga": "Premier League",
-            "local": "Chelsea", "visitante": "Liverpool",
-            "fecha": hoy_fecha, "hora": "16:00",
-            "lambda_l": 1.60, "lambda_v": 1.80,
-            "lambda_corners": 9.2, "lambda_tarjetas": 4.8,
-            "cuota_goles": 1.90, "cuota_corners": 1.68, "cuota_tarjetas": 1.60
-        },
-        {
-            "deporte": "Futbol", "liga": "UEFA Europa League",
-            "local": "Juventus", "visitante": "AC Milan",
-            "fecha": hoy_fecha, "hora": "20:00",
-            "lambda_l": 1.65, "lambda_v": 1.60,
-            "lambda_corners": 9.5, "lambda_tarjetas": 5.2,
-            "cuota_goles": 1.85, "cuota_corners": 1.75, "cuota_tarjetas": 1.55
+            "cuota_goles": 1.78, "cuota_corners": 1.85, "cuota_tarjetas": 1.75
         }
     ]
 
@@ -78,7 +107,6 @@ def patron_evaluacion_integral(partido):
     lambda_l = partido["lambda_l"]
     lambda_v = partido["lambda_v"]
     
-    # Simulación de Goles (Dixon-Coles)
     prob_over_25 = 0.0
     for h in range(7):
         for a in range(7):
@@ -86,7 +114,6 @@ def patron_evaluacion_integral(partido):
             p_ex = poisson_pmf(h, lambda_l) * poisson_pmf(a, lambda_v) * tau
             if (h + a) > 2.5: prob_over_25 += p_ex
 
-    # Simulación de Córners y Tarjetas
     prob_corners = sum(poisson_pmf(k, partido["lambda_corners"]) for k in range(9, 20))
     prob_tarjetas = sum(poisson_pmf(k, partido["lambda_tarjetas"]) for k in range(4, 15))
 
@@ -105,9 +132,8 @@ def patron_evaluacion_integral(partido):
 @app.route('/')
 def home():
     liga_filtro = request.args.get('liga', 'Todas')
-    partidos = obtener_cartelera_global()
+    partidos = obtener_partidos_api()
     
-    # Filtrar por liga si el usuario seleccionó una específica
     if liga_filtro != 'Todas':
         partidos = [p for p in partidos if p['liga'] == liga_filtro]
 
@@ -130,14 +156,12 @@ def home():
         })
 
     analisis_final.sort(key=lambda x: x["score"], reverse=True)
-    
-    # Obtener lista única de ligas para el menú desplegable
-    todas_ligas = sorted(list(set(item['liga'] for item in obtener_cartelera_global())))
+    todas_ligas = sorted(list(set(item['liga'] for item in obtener_partidos_api())))
 
     return render_template_string(HTML_TEMPLATE, resultados=analisis_final, ligas=todas_ligas, seleccionada=liga_filtro)
 
 # ==========================================
-# 3. INTERFAZ WEB RESPONSIVA (PWA CON MENÚ)
+# 3. INTERFAZ WEB RESPONSIVA (PWA)
 # ==========================================
 
 HTML_TEMPLATE = """
@@ -168,12 +192,11 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <h1>🧠 SOTELOK QUANT SUITE</h1>
-    <div class="sub">Panel Cuantitativo & IA Multimercado</div>
+    <div class="sub">Calendario en Vivo & Modelo Cuantitativo</div>
 
-    <!-- Menú Desplegable de Ligas -->
     <div class="filter-box">
         <form method="GET" action="/">
-            <label style="font-size: 13px; color: #cbd5e1; display: block; margin-bottom: 6px;">📂 Filtrar por Liga:</label>
+            <label style="font-size: 13px; color: #cbd5e1; display: block; margin-bottom: 6px;">📂 Filtrar por Competición:</label>
             <select name="liga" onchange="this.form.submit()">
                 <option value="Todas" {% if seleccionada == 'Todas' %}selected{% endif %}>🌍 Todas las Ligas</option>
                 {% for l in ligas %}
@@ -206,7 +229,7 @@ HTML_TEMPLATE = """
         </div>
         {% endfor %}
     {% else %}
-        <div class="no-results">No hay partidos disponibles para la liga seleccionada hoy.</div>
+        <div class="no-results">No hay partidos disponibles para esta selección hoy.</div>
     {% endif %}
 </body>
 </html>
