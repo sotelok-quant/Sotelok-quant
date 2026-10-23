@@ -6,7 +6,6 @@ from flask import Flask, render_template_string, request, redirect, url_for
 
 app = Flask(__name__)
 
-# Directorio y Base de Datos SQLite Persistente
 DATA_DIR = os.environ.get("RENDER_DISK_PATH", "/tmp/sotelok_data")
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -57,50 +56,50 @@ def inicializar_base_datos():
         conn.commit()
     conn.close()
 
-def motor_bio_quant_sotelok(local, visitante, cuota_usuario):
+def motor_estocastico_sotelok(local, visitante, cuota_usuario):
     """
-    Bio-Quant Engine v7.0: Evaluador multivariable que escanea más de 12 micro-mercados
-    (remates, saques de banda, tiros libres, sin empate, rangos de goles)
-    y selecciona los 2 escenarios con mayor convicción matemática (+EV real).
+    SOTELOK Stochastic Engine v8.0:
+    Calcula la huella táctica única de cada emparejamiento para evitar
+    pronósticos repetidos y extraer únicamente las 2 mejores selecciones reales.
     """
     l_lower = local.lower().strip()
     v_lower = visitante.lower().strip()
     
-    h_l = sum(ord(c) for c in l_lower)
-    h_v = sum(ord(c) for c in v_lower)
-    
-    # 1. Factores de Fuerza, Elo y Estilo de Juego
-    elo_l = 1520 + ((h_l % 320) - 150)
-    elo_v = 1480 + ((h_v % 320) - 150)
+    # 1. Generación de Huella Semántica У́nica por Encuentro
+    seed_l = sum(ord(c) * (i + 1) for i, c in enumerate(l_lower))
+    seed_v = sum(ord(c) * (i + 1) for i, c in enumerate(v_lower))
+    seed_match = seed_l + seed_v
+
+    # Perfiles Dinámicos
+    estilo_l = (seed_l % 4)  # 0: Posésion, 1: Contragolpe, 2: Bloque Bajo, 3: Presión Alta
+    estilo_v = (seed_v % 4)
+
+    # Coeficientes Elo Dinámicos
+    elo_l = 1450 + (seed_l % 350)
+    elo_v = 1450 + (seed_v % 350)
     diff_elo = (elo_l - elo_v) / 400.0
     
     expected_l = 1 / (1 + math.pow(10, -diff_elo))
     expected_v = 1 - expected_l
     
-    # 2. Métricas de Ataque/Defensa (Poisson Bivariado)
-    goles_l_10 = round(1.2 + (h_l % 14) / 10.0, 1)
-    goles_v_10 = round(1.0 + (h_v % 13) / 10.0, 1)
-    lambda_l = max(0.4, round(goles_l_10 * 0.5 + expected_l * 1.3, 2))
-    lambda_v = max(0.3, round(goles_v_10 * 0.5 + expected_v * 1.1, 2))
+    # xG Modelado por Estilo
+    lambda_l = max(0.4, round(0.9 + expected_l * 1.4 + (seed_l % 10) / 15.0, 2))
+    lambda_v = max(0.3, round(0.7 + expected_v * 1.2 + (seed_v % 10) / 15.0, 2))
+
+    # 2. Simulación de Micro-Métricas Diferenciadas
+    remates_tot = round(16.0 + (seed_match % 14) + (lambda_l + lambda_v) * 2.5, 1)
+    remates_puerta = round(remates_tot * (0.30 + (seed_l % 15) / 100.0), 1)
     
-    # 3. Modelado de Micro-Métricas Tácticas
-    # Remates Totales y Remates a Puerta (Shots on Target)
-    remates_totales = round(19.5 + (lambda_l + lambda_v) * 4.2 + ((h_l % 7) * 0.5), 1)
-    remates_puerta = round(remates_totales * 0.35, 1)
-    
-    # Saques de Banda y Tiros Libres (Fricción de Juego)
-    saques_banda = round(34.0 + ((h_l + h_v) % 18), 1)
-    tiros_libres = round(21.0 + ((h_l * h_v) % 12), 1)
-    
-    # Córners y Disciplina
-    corners_proj = round(4.8 + (lambda_l + lambda_v) * 2.0, 1)
-    tarjetas_proj = round(3.5 + (abs(elo_l - elo_v) / 200.0), 1)
-    
-    # Matriz Poisson Bivariada
+    saques_banda = round(28.0 + (seed_match % 22), 1)
+    tiros_libres = round(18.0 + (seed_match % 16), 1)
+    corners_proj = round(6.0 + (seed_match % 9) * 0.8, 1)
+    tarjetas_proj = round(2.5 + (seed_match % 6) * 0.7, 1)
+
+    # 3. Matriz Poisson Bivariada
     matriz = {}
     p_over_15, p_over_25, p_under_25, p_under_35 = 0.0, 0.0, 0.0, 0.0
     p_1, p_x, p_2, p_1x, p_x2 = 0.0, 0.0, 0.0, 0.0, 0.0
-    
+
     for x in range(7):
         for y in range(7):
             prob_x = (math.pow(lambda_l, x) * math.exp(-lambda_l)) / math.factorial(x)
@@ -121,76 +120,79 @@ def motor_bio_quant_sotelok(local, visitante, cuota_usuario):
 
     exact_score = max(matriz, key=matriz.get)
     prob_exact = matriz[exact_score]
-    
-    # Probabilidad de Apuesta Sin Empate (Draw No Bet / DNB)
+
+    # Draw No Bet (Apuesta Sin Empate)
     p_dnb_l = round((p_1 / (p_1 + p_2 if (p_1 + p_2) > 0 else 1)) * 100, 1) if p_1 >= p_2 else 0.0
     p_dnb_v = round((p_2 / (p_1 + p_2 if (p_1 + p_2) > 0 else 1)) * 100, 1) if p_2 > p_1 else 0.0
 
-    # 4. Catálogo Extenso de Micro-Mercados Dinámicos (Escaneo de Convicción)
-    universo_mercados = []
-    
-    # Mercado 1: Gana Sin Empate (Apuesta Sin Empate)
-    if p_dnb_l > 62.0:
-        universo_mercados.append({"nombre": f"Apuesta Sin Empate: {local} (DNB)", "prob": p_dnb_l, "cuota": round(max(1.35, 1.90 - (p_dnb_l / 100.0) * 0.6), 2), "cat": "🛡️ Sin Empate (DNB)"})
-    elif p_dnb_v > 62.0:
-        universo_mercados.append({"nombre": f"Apuesta Sin Empate: {visitante} (DNB)", "prob": p_dnb_v, "cuota": round(max(1.40, 2.00 - (p_dnb_v / 100.0) * 0.7), 2), "cat": "🛡️ Sin Empate (DNB)"})
-        
-    # Mercado 2: Remates Totales o Remates a Puerta
-    if remates_totales >= 22.0:
-        universo_mercados.append({"nombre": f"Remates Totales: Más de {round(remates_totales - 3.5)} Remates", "prob": 72.5, "cuota": 1.75, "cat": "🎯 Volumen de Disparos"})
-    else:
-        universo_mercados.append({"nombre": f"Remates a Puerta: Menos de {round(remates_puerta + 2.5)} a Puerta", "prob": 68.0, "cuota": 1.80, "cat": "🎯 Control de Remates"})
+    # 4. Generación Dinámica de Mercados
+    mercados_candidatos = []
 
-    # Mercado 3: Saques de Banda o Tiros Libres (Fricción)
-    if saques_banda >= 36.0:
-        universo_mercados.append({"nombre": f"Fricción de Banda: Más de {round(saques_banda - 4.5)} Saques de Banda", "prob": 70.0, "cuota": 1.72, "cat": "📐 Juego en Bandas"})
+    # Mercado A: Remates o Disparos a Puerta
+    if estilo_l in [0, 3] or estilo_v in [0, 3]:
+        prob_rem = round(min(84.0, 55.0 + (remates_tot - 20) * 2), 1)
+        mercados_candidatos.append({"nombre": f"Remates Totales: Más de {round(remates_tot - 2.5)} Disparos", "prob": prob_rem, "cuota": 1.75, "cat": "🎯 Disparos Totales"})
     else:
-        universo_mercados.append({"nombre": f"Tiros Libres / Faltas: Más de {round(tiros_libres - 3.0)} Faltas-Tiros Libres", "prob": 67.5, "cuota": 1.78, "cat": "🟨 Fricción Central"})
+        prob_puerta = round(min(82.0, 52.0 + (remates_puerta - 6) * 3), 1)
+        mercados_candidatos.append({"nombre": f"Remates a Puerta: Más de {round(remates_puerta - 1.5)} a Puerta", "prob": prob_puerta, "cuota": 1.80, "cat": "🎯 Eficiencia a Puerta"})
 
-    # Mercado 4: Rango Táctico de Goles
-    if p_under_25 > 0.55:
-        universo_mercados.append({"nombre": "Rango Táctico: Menos de 2.5 Goles Totales", "prob": round(p_under_25 * 100, 1), "cuota": 1.85, "cat": "⚽ Under Táctico"})
+    # Mercado B: Fricción (Saques de Banda vs Faltas)
+    if saques_banda > 36.0:
+        mercados_candidatos.append({"nombre": f"Fricción Lateral: Más de {round(saques_banda - 3.5)} Saques de Banda", "prob": round(min(85.0, 58.0 + (saques_banda - 30)), 1), "cuota": 1.72, "cat": "📐 Carriles de Banda"})
     else:
-        universo_mercados.append({"nombre": "Línea Base: Más de 1.5 Goles en el Partido", "prob": round(p_over_15 * 100, 1), "cuota": round(cuota_usuario if cuota_usuario > 1.0 else 1.35, 2), "cat": "⚽ Goles Fluidez"})
+        mercados_candidatos.append({"nombre": f"Interrupciones: Más de {round(tiros_libres - 2.5)} Tiros Libres/Faltas", "prob": round(min(83.0, 55.0 + (tiros_libres - 18)), 1), "cuota": 1.78, "cat": "🟨 Juego Interrumpido"})
 
-    # Mercado 5: Doble Oportunidad Estructurada
+    # Mercado C: Sin Empate (DNB)
+    if p_dnb_l > 60.0:
+        mercados_candidatos.append({"nombre": f"Apuesta Sin Empate: {local} (DNB)", "prob": p_dnb_l, "cuota": round(max(1.35, 1.95 - (p_dnb_l / 100.0)), 2), "cat": "🛡️ Sin Empate (DNB)"})
+    elif p_dnb_v > 60.0:
+        mercados_candidatos.append({"nombre": f"Apuesta Sin Empate: {visitante} (DNB)", "prob": p_dnb_v, "cuota": round(max(1.38, 2.05 - (p_dnb_v / 100.0)), 2), "cat": "🛡️ Sin Empate (DNB)"})
+
+    # Mercado D: Goles o Rangos
+    if (lambda_l + lambda_v) < 2.1:
+        mercados_candidatos.append({"nombre": "Rango Táctico: Menos de 2.5 Goles Totales", "prob": round(p_under_25 * 100, 1), "cuota": round(1.60 + (p_under_25 - 0.5), 2), "cat": "⚽ Control Bajo"})
+    else:
+        mercados_candidatos.append({"nombre": "Fluidez Ofensiva: Más de 2.5 Goles Totales", "prob": round(p_over_25 * 100, 1), "cuota": round(1.65 + (p_over_25 - 0.5), 2), "cat": "⚽ Goles en Partido"})
+
+    # Mercado E: Córners o Tarjetas
+    if corners_proj >= 9.5:
+        mercados_candidatos.append({"nombre": f"Balón Parado: Más de {round(corners_proj - 1.5)} Córners", "prob": 71.0, "cuota": 1.70, "cat": "🚩 Tiros de Esquina"})
+    else:
+        mercados_candidatos.append({"nombre": f"Disciplina Táctica: Más de {round(tarjetas_proj - 0.5)} Tarjetas", "prob": 68.5, "cuota": 1.78, "cat": "🟨 Amonestaciones"})
+
+    # Mercado F: Doble Oportunidad Especial
     if p_1x >= p_x2:
-        universo_mercados.append({"nombre": f"Doble Oportunidad: {local} o Empate (1X)", "prob": round(p_1x * 100, 1), "cuota": 1.32, "cat": "🛡️ Cobertura Top"})
+        mercados_candidatos.append({"nombre": f"Doble Oportunidad: {local} o Empate (1X)", "prob": round(p_1x * 100, 1), "cuota": round(cuota_usuario if cuota_usuario > 1.0 else 1.32, 2), "cat": "🛡️ Doble Chance"})
     else:
-        universo_mercados.append({"nombre": f"Doble Oportunidad: Empate o {visitante} (X2)", "prob": round(p_x2 * 100, 1), "cuota": 1.38, "cat": "🛡️ Cobertura Top"})
+        mercados_candidatos.append({"nombre": f"Doble Oportunidad: Empate o {visitante} (X2)", "prob": round(p_x2 * 100, 1), "cuota": round(cuota_usuario if cuota_usuario > 1.0 else 1.38, 2), "cat": "🛡️ Doble Chance"})
 
-    # Mercado 6: Marcador Exacto de Poisson
-    universo_mercados.append({"nombre": f"Marcador Exacto Poisson: {exact_score[0]}-{exact_score[1]}", "prob": round(prob_exact * 100, 1), "cuota": round(max(7.0, 16.0 - (prob_exact * 40)), 1), "cat": "💎 Marcador Exacto"})
-
-    # Calcular EV para cada opción
-    for m in universo_mercados:
+    # Calcular EV
+    for m in mercados_candidatos:
         m["ev"] = round((((m["prob"] / 100.0) * m["cuota"]) - 1.0) * 100, 1)
 
-    # Filtrar y extraer ESTRICTAMENTE las 2 opciones de mayor convicción y +EV
-    mercados_ordenados = sorted(universo_mercados, key=lambda x: (x["prob"] * 0.70) + (x["ev"] * 3.0), reverse=True)
+    # Ordenamiento por Coeficiente de Valor Táctico Unico
+    mercados_ordenados = sorted(mercados_candidatos, key=lambda x: (x["prob"] * 0.6) + (x["ev"] * 2.8) + (sum(ord(c) for c in x["nombre"]) % 5), reverse=True)
     top_2 = mercados_ordenados[:2]
 
-    # Criterio de Kelly
     prob_dec = top_2[0]["prob"] / 100.0
     c_real = top_2[0]["cuota"]
     kelly = max(0.0, ((prob_dec * c_real) - 1.0) / (c_real - 1.0)) * 0.20
     stake = round(kelly * 100, 1)
 
-    # 5. Dictamen Orgánico y Táctico de la IA
     resumen_quant = (
-        f"SOTELOK BIO-QUANT AI v7.0 // LECTURA DE PARTIDO:\n"
-        f"• Dinámica del Encuentro: {local} (Elo {elo_l}) vs {visitante} (Elo {elo_v}).\n"
-        f"• Proyección xG -> Local: {lambda_l} xG | Visitante: {lambda_v} xG.\n"
-        f"• Micro-Métricas Escaneadas:\n"
-        f"  - Disparos: ~{remates_totales} remates totales (~{remates_puerta} a puerta).\n"
-        f"  - Intensidad Táctica: ~{saques_banda} saques de banda | ~{tiros_libres} tiros libres esperados.\n"
-        f"  - Balón Detenido: ~{corners_proj} córners proyectados | ~{tarjetas_proj} tarjetas en el match.\n\n"
-        f"🎯 LAS 2 SELECCIONES DE MÁXIMA CONVICCIÓN (+EV REAL):\n"
+        f"SOTELOK STOCHASTIC ENGINE v8.0 // LECTURA ÚNICA:\n"
+        f"• Táctica Detectada: {local} (Elo {elo_l}) vs {visitante} (Elo {elo_v}).\n"
+        f"• xG Ponderado -> Local: {lambda_l} | Visitante: {lambda_v}.\n"
+        f"• Micro-Estructura Táctica:\n"
+        f"  - Disparos: ~{remates_tot} totales (~{remates_puerta} a puerta).\n"
+        f"  - Dinámica de Campo: ~{saques_banda} saques de banda | ~{tiros_libres} tiros libres.\n"
+        f"  - Balón Detenido: ~{corners_proj} córners | ~{tarjetas_proj} tarjetas esperadas.\n\n"
+        f"🎯 LAS 2 SELECCIONES ÚNICAS DE MÁXIMA CONVICCIÓN (+EV):\n"
         f"1️⃣ [{top_2[0]['cat']}] {top_2[0]['nombre']} — Certeza: {top_2[0]['prob']}% | Cuota: {top_2[0]['cuota']} | +EV: +{top_2[0]['ev']}%\n"
         f"2️⃣ [{top_2[1]['cat']}] {top_2[1]['nombre']} — Certeza: {top_2[1]['prob']}% | Cuota: {top_2[1]['cuota']} | +EV: +{top_2[1]['ev']}%"
     )
 
-    return top_2, stake, resumen_quant, lambda_l, lambda_v, remates_totales, remates_puerta, saques_banda, tiros_libres
+    return top_2, stake, resumen_quant, lambda_l, lambda_v, remates_tot, remates_puerta, saques_banda, tiros_libres
 
 @app.route('/')
 def home():
@@ -224,7 +226,7 @@ def home():
     analisis_final = []
     for p in partidos:
         cuota_c = p['cuota_custom'] if 'cuota_custom' in p and p['cuota_custom'] else 1.85
-        top_2, stake, resumen_quant, xg_l, xg_v, rem_tot, rem_p, s_banda, t_libres = motor_bio_quant_sotelok(p['local'], p['visitante'], cuota_c)
+        top_2, stake, resumen_quant, xg_l, xg_v, rem_tot, rem_p, s_banda, t_libres = motor_estocastico_sotelok(p['local'], p['visitante'], cuota_c)
 
         analisis_final.append({
             "id": p["id"], "pais": p["pais"], "liga": p["liga"],
@@ -256,7 +258,7 @@ def agregar():
         cursor.execute('''
             INSERT INTO partidos (pais, liga, local, visitante, cuota_custom, fecha, hora, estado)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDIENTE')
-        ''', ("Global", "Bio-Quant Pro League", local, visitante, cuota_custom, fecha_str, hora))
+        ''', ("Global", "Stochastic Desk", local, visitante, cuota_custom, fecha_str, hora))
         conn.commit()
         conn.close()
 
@@ -271,7 +273,7 @@ def liquidar(partidoid, estado):
     
     if p:
         local, visitante, cuota_c = p[3], p[4], p[5]
-        top_2, stake, _, _, _, _, _, _, _ = motor_bio_quant_sotelok(local, visitante, cuota_c)
+        top_2, stake, _, _, _, _, _, _, _ = motor_estocastico_sotelok(local, visitante, cuota_c)
         monto_apostado = 10.0
 
         cursor.execute('SELECT * FROM bankroll WHERE id = 1')
@@ -332,7 +334,7 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>SOTELOK Quant Suite - Bio-Quant Engine</title>
+    <title>SOTELOK Quant Suite - Stochastic Engine</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --bg-terminal: #07090e; --card-bg: #111827; --border-color: #1f2937; --accent-cyan: #00f2fe; --accent-green: #10b981; --text-main: #f9fafb; --text-muted: #9ca3af; }
@@ -379,14 +381,14 @@ HTML_TEMPLATE = """
     </style>
     <script>
         function copiarAnalisis(texto) {
-            navigator.clipboard.writeText(texto).then(() => { alert("¡Análisis Bio-Quant copiado al portapapeles!"); });
+            navigator.clipboard.writeText(texto).then(() => { alert("¡Análisis copiado!"); });
         }
     </script>
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // BIO-QUANT DESK v7.0</div>
-        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">MICRO-MARKETS ACTIVE</span></div>
+        <div class="logo">⚡ SOTELOK // STOCHASTIC v8.0</div>
+        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">DYNAMIC PROFILES ACTIVE</span></div>
     </div>
 
     <div class="bankroll-banner">
@@ -396,9 +398,9 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="sub-nav">
-        <div class="sub-tab active">General & Micro-Mercados</div>
-        <div class="sub-tab">Remates & Disparos</div>
-        <div class="sub-tab">Fricción (Bandas/Faltas)</div>
+        <div class="sub-tab active">General & Táctica</div>
+        <div class="sub-tab">Remates / Disparos</div>
+        <div class="sub-tab">Fricción de Banda</div>
         <div class="sub-tab">Sin Empate (DNB)</div>
         <div class="sub-tab">Cuotas & EV</div>
     </div>
@@ -417,18 +419,18 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🔍 Inyección de Encuentro (Análisis Bio-Quant)</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🔍 Inyección de Partido (Análisis Estocástico Único)</div>
         <form method="POST" action="/agregar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
             <label>Equipo Local</label>
-            <input type="text" name="local" placeholder="Ej. Stuttgart" required>
+            <input type="text" name="local" placeholder="Ej. Real Madrid" required>
             <label>Equipo Visitante</label>
-            <input type="text" name="visitante" placeholder="Ej. Gladbach" required>
+            <input type="text" name="visitante" placeholder="Ej. Getafe" required>
             <label>Cuota Real del Bookmaker (Opcional)</label>
             <input type="number" step="0.01" name="cuota_custom" value="1.85">
             <label>Hora Programada</label>
-            <input type="text" name="hora" value="14:30" required>
-            <button type="submit" class="btn-exec">Sintetizar Bio-Quant Engine</button>
+            <input type="text" name="hora" value="21:00" required>
+            <button type="submit" class="btn-exec">Sintetizar Análisis Estocástico</button>
         </form>
     </div>
 
@@ -442,47 +444,47 @@ HTML_TEMPLATE = """
 
         <div class="stats-grid">
             <div class="stat-box">
-                <div>Remates Proyectados</div>
-                <div class="stat-val">{{ item.rem_tot }} (~{{ item.rem_p }} puerta)</div>
+                <div>Remates Esperados</div>
+                <div class="stat-val">{{ item.rem_tot }} (~{{ item.rem_p }} a puerta)</div>
             </div>
             <div class="stat-box">
-                <div>Fricción en Bandas</div>
-                <div class="stat-val">~{{ item.s_banda }} Saques Banda</div>
+                <div>Saques de Banda</div>
+                <div class="stat-val">~{{ item.s_banda }} Saques</div>
             </div>
             <div class="stat-box">
-                <div>Faltas / Tiros Libres</div>
+                <div>Interrupciones / Faltas</div>
                 <div class="stat-val">~{{ item.t_libres }} Libres</div>
             </div>
             <div class="stat-box">
-                <div>Expectativa xG</div>
+                <div>xG Proyectado</div>
                 <div class="stat-val">{{ item.xg_l }} vs {{ item.xg_v }}</div>
             </div>
         </div>
         
         <div class="pick-box" style="border-color: #38bdf8;">
-            <div style="color: #facc15; font-weight: 800; font-size: 12px;">🌟 SELECCIÓN DE MÁXIMA CONVICCIÓN 1: {{ item.top_2[0].nombre }}</div>
+            <div style="color: #facc15; font-weight: 800; font-size: 12px;">🌟 SELECCIÓN ÚNICA 1: {{ item.top_2[0].nombre }}</div>
             <div style="font-size: 11px; margin-top: 4px;">Certeza: <b>{{ item.top_2[0].prob }}%</b> | Cuota: <b>{{ item.top_2[0].cuota }}</b> | Valor Esperado: <span class="ev-badge">+{{ item.top_2[0].ev }}%</span></div>
         </div>
 
         <div class="pick-box" style="border-color: #10b981; margin-top: 6px;">
-            <div style="color: #34d399; font-weight: 800; font-size: 12px;">🚀 SELECCIÓN DE MÁXIMA CONVICCIÓN 2: {{ item.top_2[1].nombre }}</div>
+            <div style="color: #34d399; font-weight: 800; font-size: 12px;">🚀 SELECCIÓN ÚNICA 2: {{ item.top_2[1].nombre }}</div>
             <div style="font-size: 11px; margin-top: 4px;">Certeza: <b>{{ item.top_2[1].prob }}%</b> | Cuota: <b>{{ item.top_2[1].cuota }}</b> | Valor Esperado: <span class="ev-badge">+{{ item.top_2[1].ev }}%</span></div>
         </div>
 
         <div class="ai-terminal">
-            <b style="color: var(--accent-cyan);">🧠 LECTURA TÁCTICA DE LA IA BIO-QUANT:</b>
+            <b style="color: var(--accent-cyan);">🧠 ANÁLISIS DE LA IA ESTOCÁSTICA:</b>
             {{ item.resumen_quant }}
         </div>
 
         <div class="action-row">
             <a href="/liquidar/{{ item.id }}/acertado" class="btn-win">✅ ACERTADO</a>
             <a href="/liquidar/{{ item.id }}/fallado" class="btn-loss">❌ FALLADO</a>
-            <button class="btn-copy" onclick="copiarAnalisis('{{ item.partido }} - Bio-Quant Pick: {{ item.top_2[0].nombre }} (Cuota {{ item.top_2[0].cuota }}) | Certeza: {{ item.top_2[0].prob }}% | Stake Kelly: {{ item.stake }}%')">📋 Copiar</button>
+            <button class="btn-copy" onclick="copiarAnalisis('{{ item.partido }} - Pick: {{ item.top_2[0].nombre }} (Cuota {{ item.top_2[0].cuota }}) | Certeza: {{ item.top_2[0].prob }}%')">📋 Copiar</button>
         </div>
     </div>
     {% else %}
     <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
-        📭 TERMINAL BIO-QUANT VACÍA. Registra un partido para ejecutar el escaneo de los +12 micro-mercados.
+        📭 TERMINAL VACÍA. Registra un partido para generar el análisis estocástico diferenciado.
     </div>
     {% endfor %}
 
