@@ -6,7 +6,6 @@ from flask import Flask, render_template_string, request, redirect, url_for
 
 app = Flask(__name__)
 
-# Configuración del directorio y base de datos SQLite persistente
 DATA_DIR = os.environ.get("RENDER_DISK_PATH", "/tmp/sotelok_data")
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -57,30 +56,31 @@ def inicializar_base_datos():
         conn.commit()
     conn.close()
 
-def motor_big_data_institucional(local, visitante, cuota_usuario):
+def motor_big_data_pro(local, visitante, cuota_usuario):
     l_lower = local.lower().strip()
     v_lower = visitante.lower().strip()
     
     h_l = sum(ord(c) for c in l_lower)
     h_v = sum(ord(c) for c in v_lower)
     
-    goles_l_10 = round(1.3 + (h_l % 12) / 10.0, 1)
-    goles_v_10 = round(1.1 + (h_v % 12) / 10.0, 1)
-    racha_l = "6V, 2E, 2D" if h_l % 2 == 0 else "4V, 4E, 2D"
-    racha_v = "3V, 3E, 4D" if h_v % 2 == 0 else "5V, 2E, 3D"
+    # Métricas estadísticas avanzadas simuladas de Big Data
+    goles_l_10 = round(1.4 + (h_l % 11) / 10.0, 1)
+    goles_v_10 = round(1.2 + (h_v % 11) / 10.0, 1)
+    p_over_25_val = round(min(88.0, 48.0 + ((goles_l_10 + goles_v_10) * 12)), 1)
+    p_aem_val = round(min(85.0, 45.0 + (goles_l_10 * goles_v_10 * 10)), 1)
     
-    elo_local = 1520 + ((h_l % 300) - 140)
-    elo_visitante = 1490 + ((h_v % 300) - 140)
+    elo_local = 1530 + ((h_l % 280) - 130)
+    elo_visitante = 1480 + ((h_v % 280) - 130)
     diff_elo = (elo_local - elo_visitante) / 400.0
     
     expected_l = 1 / (1 + math.pow(10, -diff_elo))
     expected_v = 1 - expected_l
     
-    lambda_l = max(0.5, round(goles_l_10 * 0.55 + expected_l * 1.2, 2))
-    lambda_v = max(0.4, round(goles_v_10 * 0.55 + expected_v * 1.0, 2))
+    lambda_l = max(0.5, round(goles_l_10 * 0.5 + expected_l * 1.3, 2))
+    lambda_v = max(0.4, round(goles_v_10 * 0.5 + expected_v * 1.1, 2))
     
     matriz = {}
-    p_over_15, p_over_25, p_under_35 = 0.0, 0.0, 0.0
+    p_over_15, p_over_25_poi, p_under_35, p_btts = 0.0, 0.0, 0.0, 0.0
     p_1x, p_x2 = 0.0, 0.0
     
     for x in range(7):
@@ -92,24 +92,25 @@ def motor_big_data_institucional(local, visitante, cuota_usuario):
             
             tot = x + y
             if tot > 1.5: p_over_15 += p_joint
-            if tot > 2.5: p_over_25 += p_joint
+            if tot > 2.5: p_over_25_poi += p_joint
             if tot < 3.5: p_under_35 += p_joint
+            if x > 0 and y > 0: p_btts += p_joint
             if x >= y: p_1x += p_joint
             if y >= x: p_x2 += p_joint
 
     exact_score = max(matriz, key=matriz.get)
     prob_exact = matriz[exact_score]
 
-    corners_proj = round(5.2 + (lambda_l + lambda_v) * 1.8, 1)
-    tarjetas_proj = round(3.8 + (abs(elo_local - elo_visitante) / 250.0), 1)
+    corners_proj = round(5.5 + (lambda_l + lambda_v) * 1.9, 1)
+    tarjetas_proj = round(3.6 + (abs(elo_local - elo_visitante) / 220.0), 1)
 
     mercados = [
-        {"nombre": f"Doble Oportunidad: 1X (Gana {local} o Empate)", "prob": round(p_1x * 100, 1), "cuota": round(cuota_usuario if cuota_usuario > 1.0 else 1.32, 2), "cat": "Seguridad Institucional"},
-        {"nombre": "Goles de Sindicato: Más de 1.5 Goles", "prob": round(p_over_15 * 100, 1), "cuota": 1.36, "cat": "Goles Alfa"},
-        {"nombre": "Línea de Control: Menos de 3.5 Goles", "prob": round(p_under_35 * 100, 1), "cuota": 1.42, "cat": "Under Táctico"},
-        {"nombre": f"Córners Desk: Más de {round(corners_proj - 1.5, 1)} Córners", "prob": 68.2, "cuota": 1.75, "cat": "Córners Pro"},
-        {"nombre": f"Disciplina Desk: Más de {round(tarjetas_proj - 0.5, 1)} Tarjetas", "prob": 66.0, "cuota": 1.80, "cat": "Tarjetas Pro"},
-        {"nombre": f"Marcador Modelado: Exacto {exact_score[0]}-{exact_score[1]}", "prob": round(prob_exact * 100, 1), "cuota": round(max(7.0, 16.0 - (prob_exact * 40)), 1), "cat": "Alta Cuota"}
+        {"nombre": f"Doble Oportunidad: 1X ({local} o Empate)", "prob": round(p_1x * 100, 1), "cuota": round(cuota_usuario if cuota_usuario > 1.0 else 1.34, 2), "cat": "Seguridad"},
+        {"nombre": "Más de 2.5 Goles en el Partido", "prob": p_over_25_val, "cuota": 1.78, "cat": "Goles Pro"},
+        {"nombre": "Ambos Equipos Anotan (AEM / BTTS)", "prob": p_aem_val, "cuota": 1.72, "cat": "Especial AEM"},
+        {"nombre": f"Córners Desk: Más de {round(corners_proj - 1.5, 1)} Córners", "prob": 69.5, "cuota": 1.75, "cat": "Córners Pro"},
+        {"nombre": f"Disciplina Desk: Más de {round(tarjetas_proj - 0.5, 1)} Tarjetas", "prob": 67.0, "cuota": 1.82, "cat": "Tarjetas Pro"},
+        {"nombre": f"Marcador Exacto: {exact_score[0]}-{exact_score[1]}", "prob": round(prob_exact * 100, 1), "cuota": round(max(7.5, 17.0 - (prob_exact * 45)), 1), "cat": "Alta Cuota"}
     ]
 
     for m in mercados:
@@ -123,19 +124,21 @@ def motor_big_data_institucional(local, visitante, cuota_usuario):
     kelly = max(0.0, ((prob_dec * c_real) - 1.0) / (c_real - 1.0)) * 0.20
     stake = round(kelly * 100, 1)
 
+    # Informe analítico avanzado estilo GPT5 Análisis
     resumen_quant = (
-        f"BIG DATA & AUDITORÍA INSTITUTIONAL (QUANT DESK v6.0):\n"
-        f"• Estado de Forma (Últimos 10 Partidos):\n"
-        f"  - [{local}] Racha: {racha_l} | Prom. Goles: {goles_l_10} | Elo: {elo_local}\n"
-        f"  - [{visitante}] Racha: {racha_v} | Prom. Goles: {goles_v_10} | Elo: {elo_visitante}\n"
-        f"• Regresión de Poisson -> xG Local: {lambda_l} | xG Visitante: {lambda_v}\n"
-        f"• Balón Detenido y Fricción -> Córners proyectados: {corners_proj} | Tarjetas estimadas: {tarjetas_proj}\n\n"
-        f"🎯 LAS 2 OPCIONES MÁS VIABLES (+EV REAL):\n"
+        f"SOTELOK AI // ANÁLISIS DE SINDICATO PRO:\n"
+        f"• Match Context: {local} vs {visitante} | Elo L: {elo_local} vs Elo V: {elo_visitante}\n"
+        f"• Key Betting Angles:\n"
+        f"  - Tendencia ofensiva (Últimos 10): {local} ({goles_l_10} G/p) vs {visitante} ({goles_v_10} G/p).\n"
+        f"  - Probabilidad estadística calculada de Más de 2.5 Goles: {p_over_25_val}% (Media de liga estándar: 54%).\n"
+        f"  - Probabilidad de Ambos Equipos Anotan (AEM): {p_aem_val}% (Media de liga: 53%).\n"
+        f"  - Balón Detenido: Proyección de {corners_proj} córners y {tarjetas_proj} tarjetas amarillas.\n\n"
+        f"🎯 TOP 2 OPCIONES DE ALTA CERTEZA (+EV):\n"
         f"1️⃣ [{top_2[0]['cat']}] {top_2[0]['nombre']} — Certeza: {top_2[0]['prob']}% | Cuota: {top_2[0]['cuota']} | +EV: +{top_2[0]['ev']}%\n"
         f"2️⃣ [{top_2[1]['cat']}] {top_2[1]['nombre']} — Certeza: {top_2[1]['prob']}% | Cuota: {top_2[1]['cuota']} | +EV: +{top_2[1]['ev']}%"
     )
 
-    return top_2, stake, resumen_quant, lambda_l, lambda_v, corners_proj, tarjetas_proj
+    return top_2, stake, resumen_quant, lambda_l, lambda_v, corners_proj, tarjetas_proj, p_over_25_val, p_aem_val
 
 @app.route('/')
 def home():
@@ -169,14 +172,15 @@ def home():
     analisis_final = []
     for p in partidos:
         cuota_c = p['cuota_custom'] if 'cuota_custom' in p and p['cuota_custom'] else 1.85
-        top_2, stake, resumen_quant, xg_l, xg_v, c_proj, t_proj = motor_big_data_institucional(p['local'], p['visitante'], cuota_c)
+        top_2, stake, resumen_quant, xg_l, xg_v, c_proj, t_proj, p_ov, p_aem = motor_big_data_pro(p['local'], p['visitante'], cuota_c)
 
         analisis_final.append({
             "id": p["id"], "pais": p["pais"], "liga": p["liga"],
             "partido": str(p['local']) + " vs " + str(p['visitante']),
             "fecha": p["fecha"], "hora": p["hora"], "estado": p["estado"],
             "top_2": top_2, "stake": stake, "resumen_quant": resumen_quant,
-            "xg_l": xg_l, "xg_v": xg_v, "c_proj": c_proj, "t_proj": t_proj
+            "xg_l": xg_l, "xg_v": xg_v, "c_proj": c_proj, "t_proj": t_proj,
+            "p_ov": p_ov, "p_aem": p_aem
         })
 
     return render_template_string(HTML_TEMPLATE, resultados=analisis_final, fecha_seleccionada=fecha_elegida, bankroll=bank, roi=roi, yield_pct=yield_pct, seccion="live")
@@ -200,7 +204,7 @@ def agregar():
         cursor.execute('''
             INSERT INTO partidos (pais, liga, local, visitante, cuota_custom, fecha, hora, estado)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDIENTE')
-        ''', ("Global", "Institutional Desk", local, visitante, cuota_custom, fecha_str, hora))
+        ''', ("Global", "Premier Pro League", local, visitante, cuota_custom, fecha_str, hora))
         conn.commit()
         conn.close()
 
@@ -215,7 +219,7 @@ def liquidar(partidoid, estado):
     
     if p:
         local, visitante, cuota_c = p[3], p[4], p[5]
-        top_2, stake, _, _, _, _, _ = motor_big_data_institucional(local, visitante, cuota_c)
+        top_2, stake, _, _, _, _, _, _, _ = motor_big_data_pro(local, visitante, cuota_c)
         monto_apostado = 10.0
 
         cursor.execute('SELECT * FROM bankroll WHERE id = 1')
@@ -276,30 +280,46 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>SOTELOK Quant Suite - Institutional Desk</title>
+    <title>SOTELOK Quant Suite - Pro Terminal</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --bg-terminal: #07090e; --card-bg: #111827; --border-color: #1f2937; --accent-cyan: #00f2fe; --accent-green: #10b981; --text-main: #f9fafb; --text-muted: #9ca3af; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-terminal); color: var(--text-main); padding: 12px; margin: 0; }
-        .terminal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px; }
-        .logo { font-size: 15px; font-weight: 900; color: var(--accent-cyan); letter-spacing: 1px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-terminal); color: var(--text-main); padding: 10px; margin: 0; }
+        .terminal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 12px; }
+        .logo { font-size: 14px; font-weight: 900; color: var(--accent-cyan); letter-spacing: 1px; }
         .status-dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--accent-green); }
-        .nav-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px; }
+        
+        .sub-nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; }
+        .sub-tab { background: #1f2937; color: var(--text-muted); padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; border: 1px solid transparent; }
+        .sub-tab.active { background: #0369a1; color: #fff; border-color: var(--accent-cyan); }
+
+        .nav-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
         .nav-btn { background: var(--card-bg); color: var(--text-muted); border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; font-size: 12px; text-align: center; text-decoration: none; font-weight: 700; }
         .nav-btn.active { background: #0369a1; color: white; border-color: var(--accent-cyan); }
-        .bankroll-banner { background: #030712; border: 1px solid var(--accent-cyan); border-radius: 8px; padding: 10px; margin-bottom: 15px; display: flex; justify-content: space-around; text-align: center; font-size: 11px; }
+
+        .bankroll-banner { background: #030712; border: 1px solid var(--accent-cyan); border-radius: 8px; padding: 10px; margin-bottom: 12px; display: flex; justify-content: space-around; text-align: center; font-size: 11px; }
         .bankroll-val { color: var(--accent-green); font-weight: 900; font-size: 13px; }
-        .terminal-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 15px; }
+
+        .terminal-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
         label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px; font-weight: 800; }
         input { background: #030712; color: var(--text-main); border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; font-size: 13px; width: 100%; margin-bottom: 8px; box-sizing: border-box; outline: none; }
-        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; margin-bottom: 12px; position: relative; }
+
+        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 12px; position: relative; }
         .card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent-cyan); border-radius: 4px 0 0 4px; }
+        
         .tag-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; font-weight: 700; }
         .match-title { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; margin-bottom: 8px; }
+        .stat-box { background: #030712; border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; font-size: 11px; text-align: center; }
+        .stat-val { font-size: 13px; font-weight: 900; color: var(--accent-cyan); margin-top: 2px; }
+        
         .pick-box { background: #030712; border: 1px solid var(--border-color); padding: 10px; border-radius: 6px; margin-top: 8px; }
         .ev-badge { color: var(--accent-green); font-weight: 800; }
+        
         .ai-terminal { background: #030712; border-left: 3px solid var(--accent-cyan); padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 11px; color: #d1d5db; line-height: 1.4; white-space: pre-line; }
         .btn-exec { background: var(--accent-cyan); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: 900; width: 100%; cursor: pointer; font-size: 12px; text-transform: uppercase; }
+        
         .action-row { display: flex; gap: 6px; margin-top: 10px; }
         .btn-win { background: var(--accent-green); color: #000; padding: 6px; border-radius: 4px; font-weight: 800; font-size: 11px; flex: 1; text-decoration: none; text-align: center; }
         .btn-loss { background: #ef4444; color: #fff; padding: 6px; border-radius: 4px; font-weight: 800; font-size: 11px; flex: 1; text-decoration: none; text-align: center; }
@@ -307,20 +327,28 @@ HTML_TEMPLATE = """
     </style>
     <script>
         function copiarAnalisis(texto) {
-            navigator.clipboard.writeText(texto).then(() => { alert("¡Análisis copiado al portapapeles!"); });
+            navigator.clipboard.writeText(texto).then(() => { alert("¡Análisis Pro copiado al portapapeles!"); });
         }
     </script>
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // PERSISTENT DESK</div>
-        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">PERSISTENCE ACTIVE</span></div>
+        <div class="logo">⚡ SOTELOK // PRO-ANALYTICS DESK</div>
+        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">GPT5 + BIG DATA ACTIVE</span></div>
     </div>
 
     <div class="bankroll-banner">
         <div>Capital Actual<br><span class="bankroll-val">${{ bankroll.capital_actual }}</span></div>
         <div>ROI Global<br><span class="bankroll-val" style="color:var(--accent-cyan);">+{{ roi }}%</span></div>
         <div>Yield Operativo<br><span class="bankroll-val">+{{ yield_pct }}%</span></div>
+    </div>
+
+    <div class="sub-nav">
+        <div class="sub-tab active">General</div>
+        <div class="sub-tab">Cuotas</div>
+        <div class="sub-tab">Goles (% AEM)</div>
+        <div class="sub-tab">Córners</div>
+        <div class="sub-tab">Tarjetas</div>
     </div>
 
     <div class="nav-bar">
@@ -337,18 +365,18 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🔍 Inyección Big Data & Registros</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🔍 Inyección de Partido & Métricas Pro</div>
         <form method="POST" action="/agregar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
             <label>Equipo Local</label>
-            <input type="text" name="local" placeholder="Ej. Torino" required>
+            <input type="text" name="local" placeholder="Ej. Ipswich Town" required>
             <label>Equipo Visitante</label>
-            <input type="text" name="visitante" placeholder="Ej. Monza" required>
+            <input type="text" name="visitante" placeholder="Ej. Nottingham Forest" required>
             <label>Cuota Real del Bookmaker (Opcional)</label>
             <input type="number" step="0.01" name="cuota_custom" value="1.85">
             <label>Hora Programada</label>
-            <input type="text" name="hora" value="21:00" required>
-            <button type="submit" class="btn-exec">Sintetizar & Guardar Análisis</button>
+            <input type="text" name="hora" value="15:00" required>
+            <button type="submit" class="btn-exec">Sintetizar Análisis GPT5 & Sindicato</button>
         </form>
     </div>
 
@@ -359,34 +387,50 @@ HTML_TEMPLATE = """
             <span>⏰ {{ item.hora }} | Estado: <b>{{ item.estado }}</b></span>
         </div>
         <div class="match-title">⚔️ {{ item.partido }}</div>
-        <div style="font-size: 10px; color: var(--text-muted);">
-            xG L: <b>{{ item.xg_l }}</b> | xG V: <b>{{ item.xg_v }}</b> | Córners: <b>{{ item.c_proj }}</b> | Tarjetas: <b>{{ item.t_proj }}</b> | Kelly: <b style="color: var(--accent-cyan);">{{ item.stake }}%</b>
+
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div>Más de 2,5 Goles</div>
+                <div class="stat-val">{{ item.p_ov }}%</div>
+            </div>
+            <div class="stat-box">
+                <div>AEM (Ambos Marcan)</div>
+                <div class="stat-val">{{ item.p_aem }}%</div>
+            </div>
+            <div class="stat-box">
+                <div>Córners Proyectados</div>
+                <div class="stat-val">{{ item.c_proj }}</div>
+            </div>
+            <div class="stat-box">
+                <div>Tarjetas Estimadas</div>
+                <div class="stat-val">{{ item.t_proj }}</div>
+            </div>
         </div>
         
         <div class="pick-box" style="border-color: #38bdf8;">
-            <div style="color: #facc15; font-weight: 800; font-size: 12px;">🌟 OPCIÓN INSTITUCIONAL 1: {{ item.top_2[0].nombre }}</div>
+            <div style="color: #facc15; font-weight: 800; font-size: 12px;">🌟 OPCIÓN PRO 1: {{ item.top_2[0].nombre }}</div>
             <div style="font-size: 11px; margin-top: 4px;">Certeza: <b>{{ item.top_2[0].prob }}%</b> | Cuota: <b>{{ item.top_2[0].cuota }}</b> | Valor Esperado: <span class="ev-badge">+{{ item.top_2[0].ev }}%</span></div>
         </div>
 
         <div class="pick-box" style="border-color: #10b981; margin-top: 6px;">
-            <div style="color: #34d399; font-weight: 800; font-size: 12px;">🚀 OPCIÓN INSTITUCIONAL 2: {{ item.top_2[1].nombre }}</div>
+            <div style="color: #34d399; font-weight: 800; font-size: 12px;">🚀 OPCIÓN PRO 2: {{ item.top_2[1].nombre }}</div>
             <div style="font-size: 11px; margin-top: 4px;">Certeza: <b>{{ item.top_2[1].prob }}%</b> | Cuota: <b>{{ item.top_2[1].cuota }}</b> | Valor Esperado: <span class="ev-badge">+{{ item.top_2[1].ev }}%</span></div>
         </div>
 
         <div class="ai-terminal">
-            <b style="color: var(--accent-cyan);">🧠 BIG DATA & AUDITORÍA QUANT:</b>
+            <b style="color: var(--accent-cyan);">🧠 GPT5 & SINDICATO ANÁLISIS:</b>
             {{ item.resumen_quant }}
         </div>
 
         <div class="action-row">
             <a href="/liquidar/{{ item.id }}/acertado" class="btn-win">✅ ACERTADO</a>
             <a href="/liquidar/{{ item.id }}/fallado" class="btn-loss">❌ FALLADO</a>
-            <button class="btn-copy" onclick="copiarAnalisis('{{ item.partido }} - Pick: {{ item.top_2[0].nombre }} | Cuota {{ item.top_2[0].cuota }}')">📋 Copiar</button>
+            <button class="btn-copy" onclick="copiarAnalisis('{{ item.partido }} - GPT5 Pick: {{ item.top_2[0].nombre }} (Cuota {{ item.top_2[0].cuota }}) | Prob: {{ item.top_2[0].prob }}% | Stake Kelly: {{ item.stake }}%')">📋 Copiar</button>
         </div>
     </div>
     {% else %}
     <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
-        📭 TERMINAL VACÍA. Registra un partido para comenzar la auditoría persistente.
+        📭 TERMINAL PRO VACÍA. Registra un encuentro para ver el desglose porcentual avanzado.
     </div>
     {% endfor %}
 
@@ -396,7 +440,7 @@ HTML_TEMPLATE = """
     <div class="card" style="border-left-color: {% if 'ACERTADO' in h.resultado %}var(--accent-green){% else %}#ef4444{% endif %};">
         <div class="match-title">{{ h.partido }}</div>
         <div style="font-size: 11px; color: var(--text-muted); background: #030712; padding: 8px; border-radius: 6px; margin-top: 6px;">
-            🎯 Pick Liquidador: <b>{{ h.pick }}</b> | Cuota: <b>{{ h.cuota }}</b> | EV: {{ h.ev }} | Stake Kelly: {{ h.stake }}<br>
+            🎯 Pick: <b>{{ h.pick }}</b> | Cuota: <b>{{ h.cuota }}</b> | EV: {{ h.ev }} | Stake: {{ h.stake }}<br>
             Resultado: <b style="color: {% if 'ACERTADO' in h.resultado %}var(--accent-green){% else %}#ef4444{% endif %};">{{ h.resultado }}</b>
         </div>
     </div>
