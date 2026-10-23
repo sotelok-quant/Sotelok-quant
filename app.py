@@ -1,10 +1,17 @@
+import os
 import math
 import sqlite3
 from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request, redirect, url_for
 
 app = Flask(__name__)
-DB_NAME = "sotelok_institutional_desk.db"
+
+# Definición de ruta persistente para base de datos SQLite en Render
+DATA_DIR = os.environ.get("RENDER_DISK_PATH", "/tmp/sotelok_data")
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR, exist_ok=True)
+
+DB_NAME = os.path.join(DATA_DIR, "sotelok_institutional_desk.db")
 
 def inicializar_base_datos():
     conn = sqlite3.connect(DB_NAME)
@@ -52,25 +59,17 @@ def inicializar_base_datos():
     conn.close()
 
 def motor_big_data_institucional(local, visitante, cuota_usuario):
-    """
-    Motor de Big Data Cuantitativo Avanzado (Quant Desk v6.0):
-    Procesa un modelo multivariable con Elo dinámico, regresión bivariada de Poisson,
-    tendencias de los últimos 10 partidos y análisis de balón detenido.
-    """
     l_lower = local.lower().strip()
     v_lower = visitante.lower().strip()
     
-    # Huella hash algorítmica profunda de los equipos
     h_l = sum(ord(c) for c in l_lower)
     h_v = sum(ord(c) for c in v_lower)
     
-    # Simulación de Big Data: Últimos 10 partidos y rachas dinámicas
     goles_l_10 = round(1.3 + (h_l % 12) / 10.0, 1)
     goles_v_10 = round(1.1 + (h_v % 12) / 10.0, 1)
     racha_l = "6V, 2E, 2D" if h_l % 2 == 0 else "4V, 4E, 2D"
     racha_v = "3V, 3E, 4D" if h_v % 2 == 0 else "5V, 2E, 3D"
     
-    # Ratings Elo y Regresión de Poisson Bivariada
     elo_local = 1520 + ((h_l % 300) - 140)
     elo_visitante = 1490 + ((h_v % 300) - 140)
     diff_elo = (elo_local - elo_visitante) / 400.0
@@ -103,11 +102,9 @@ def motor_big_data_institucional(local, visitante, cuota_usuario):
     exact_score = max(matriz, key=matriz.get)
     prob_exact = matriz[exact_score]
 
-    # Balón detenido y disciplina por Big Data
     corners_proj = round(5.2 + (lambda_l + lambda_v) * 1.8, 1)
     tarjetas_proj = round(3.8 + (abs(elo_local - elo_visitante) / 250.0), 1)
 
-    # Catálogo institucional con cuota del usuario
     mercados = [
         {"nombre": f"Doble Oportunidad: 1X (Gana {local} o Empate)", "prob": round(p_1x * 100, 1), "cuota": round(cuota_usuario if cuota_usuario > 1.0 else 1.32, 2), "cat": "Seguridad Institucional"},
         {"nombre": "Goles de Sindicato: Más de 1.5 Goles", "prob": round(p_over_15 * 100, 1), "cuota": 1.36, "cat": "Goles Alfa"},
@@ -123,13 +120,11 @@ def motor_big_data_institucional(local, visitante, cuota_usuario):
     mercados_ordenados = sorted(mercados, key=lambda x: (x["prob"] * 0.75) + (x["ev"] * 2.5), reverse=True)
     top_2 = mercados_ordenados[:2]
 
-    # Criterio de Kelly Científico con cuota real
     prob_dec = top_2[0]["prob"] / 100.0
     c_real = top_2[0]["cuota"]
     kelly = max(0.0, ((prob_dec * c_real) - 1.0) / (c_real - 1.0)) * 0.20
     stake = round(kelly * 100, 1)
 
-    # Informe de Big Data y Auditoría
     resumen_quant = (
         f"BIG DATA & AUDITORÍA INSTITUCIONAL (QUANT DESK v6.0):\n"
         f"• Estado de Forma (Últimos 10 Partidos):\n"
@@ -163,6 +158,15 @@ def home():
     
     cursor.execute('SELECT * FROM bankroll WHERE id = 1')
     bank = dict(cursor.fetchone())
+    
+    # Calcular ROI y Yield sobre datos reales persistentes
+    cap_ini = bank['capital_inicial']
+    cap_act = bank['capital_actual']
+    t_apos = bank['total_apostado']
+    t_gan = bank['total_ganado']
+
+    roi = round(((cap_act - cap_ini) / cap_ini) * 100, 2) if cap_ini > 0 else 0.0
+    yield_pct = round(((t_gan - t_apos) / t_apos) * 100, 2) if t_apos > 0 else 0.0
     conn.close()
 
     analisis_final = []
@@ -178,7 +182,7 @@ def home():
             "xg_l": xg_l, "xg_v": xg_v, "c_proj": c_proj, "t_proj": t_proj
         })
 
-    return render_template_string(HTML_TEMPLATE, resultados=analisis_final, fecha_seleccionada=fecha_elegida, bankroll=bank, seccion="live")
+    return render_template_string(HTML_TEMPLATE, resultados=analisis_final, fecha_seleccionada=fecha_elegida, bankroll=bank, roi=roi, yield_pct=yield_pct, seccion="live")
 
 @app.route('/agregar', methods=['POST'])
 def agregar():
@@ -215,7 +219,7 @@ def liquidar(partidoid, estado):
     if p:
         local, visitante, cuota_c = p[3], p[4], p[5]
         top_2, stake, _, _, _, _, _ = motor_big_data_institucional(local, visitante, cuota_c)
-        monto_apostado = 10.0 # Base estándar para simulación de bankroll
+        monto_apostado = 10.0 # Unidad base fija de auditoria
 
         cursor.execute('SELECT * FROM bankroll WHERE id = 1')
         bank = cursor.fetchone()
@@ -235,7 +239,6 @@ def liquidar(partidoid, estado):
         cursor.execute('UPDATE bankroll SET capital_actual = ?, total_apostado = ?, total_ganado = ? WHERE id = 1', (round(cap_actual, 2), round(t_apostado, 2), round(t_ganado, 2)))
         cursor.execute('UPDATE partidos SET estado = ? WHERE id = ?', (res_str, partidoid))
         
-        # Registrar en historial
         cursor.execute('INSERT INTO historial_ia (partido, pick, cuota, probabilidad, ev, stake, resultado) VALUES (?, ?, ?, ?, ?, ?, ?)',
                        (f"{local} vs {visitante}", top_2[0]["nombre"], top_2[0]["cuota"], f"{top_2[0]['prob']}%", f"+{top_2[0]['ev']}%", f"{stake}%", res_str))
         conn.commit()
@@ -249,7 +252,7 @@ def rendimiento():
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM bankroll WHERE id = 1')
     bank = dict(cursor.fetchone())
-    cursor.execute('SELECT * FROM historial_ia')
+    cursor.execute('SELECT * FROM historial_ia ORDER BY id DESC')
     historial = [dict(r) for r in cursor.fetchall()]
     conn.close()
 
@@ -325,15 +328,15 @@ HTML_TEMPLATE = """
     <script>
         function copiarAnalisis(texto) {
             navigator.clipboard.writeText(texto).then(() => {
-                alert("¡Análisis copiado al portapapeles con formato para Telegram/WhatsApp!");
+                alert("¡Análisis copiado al portapapeles!");
             });
         }
     </script>
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // INSTITUTIONAL DESK</div>
-        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">BIG DATA + ELO + POISSON</span></div>
+        <div class="logo">⚡ SOTELOK // PERSISTENT DESK</div>
+        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">SQLITE PERSISTENT</span></div>
     </div>
 
     <div class="bankroll-banner">
@@ -343,8 +346,8 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="nav-bar">
-        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📊 Terminal Institucional</a>
-        <a href="/rendimiento" class="nav-btn {% if seccion == 'rendimiento' %}active{% endif %}">📈 Rendimiento & Auditoría</a>
+        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📊 Terminal En Vivo</a>
+        <a href="/rendimiento" class="nav-btn {% if seccion == 'rendimiento' %}active{% endif %}">📈 Historial Guardado ({{ historial|length if historial else 0 }})</a>
     </div>
 
     {% if seccion == 'live' %}
@@ -356,18 +359,18 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🔍 Inyección Big Data & Cuota del Operador</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🔍 Inyección Big Data & Registros</div>
         <form method="POST" action="/agregar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
             <label>Equipo Local</label>
-            <input type="text" name="local" placeholder="Ej. Real Madrid" required>
+            <input type="text" name="local" placeholder="Ej. Torino" required>
             <label>Equipo Visitante</label>
-            <input type="text" name="visitante" placeholder="Ej. Barcelona" required>
+            <input type="text" name="visitante" placeholder="Ej. Monza" required>
             <label>Cuota Real del Bookmaker (Opcional)</label>
             <input type="number" step="0.01" name="cuota_custom" value="1.85">
             <label>Hora Programada</label>
             <input type="text" name="hora" value="21:00" required>
-            <button type="submit" class="btn-exec">Sintetizar Análisis de Sindicato</button>
+            <button type="submit" class="btn-exec">Sintetizar & Guardar Análisis</button>
         </form>
     </div>
 
@@ -400,30 +403,30 @@ HTML_TEMPLATE = """
         <div class="action-row">
             <a href="/liquidar/{{ item.id }}/acertado" class="btn-win">✅ ACERTADO</a>
             <a href="/liquidar/{{ item.id }}/fallado" class="btn-loss">❌ FALLADO</a>
-            <button class="btn-copy" onclick="copiarAnalisis('{{ item.partido }} - Top Pick: {{ item.top_2[0].nombre }} (Cuota {{ item.top_2[0].cuota }}) | Prob: {{ item.top_2[0].prob }}% | Stake Kelly: {{ item.stake }}%')">📋 Copiar</button>
+            <button class="btn-copy" onclick="copiarAnalisis('{{ item.partido }} - Pick: {{ item.top_2[0].nombre }} | Cuota {{ item.top_2[0].cuota }} | EV: +{{ item.top_2[0].ev }}%')">📋 Copiar</button>
         </div>
     </div>
     {% else %}
     <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
-        📭 TERMINAL INSTITUCIONAL VACÍA. Inyecta un encuentro para procesar Big Data, rachas de últimos 10 partidos y cuotas reales.
+        📭 TERMINAL VACÍA. Registra un partido para comenzar la auditoría persistente.
     </div>
     {% endfor %}
 
     {% else %}
-    <div style="font-size: 14px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📈 Histórico de Rendimiento & Auditoría</div>
+    <div style="font-size: 14px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📈 HISTORIAL PERSISTENTE DE APUESTAS</div>
     {% for h in historial %}
-    <div class="card" style="border-left-color: var(--accent-green);">
+    <div class="card" style="border-left-color: {% if 'ACERTADO' in h.resultado %}var(--accent-green){% else %}#ef4444{% endif %};">
         <div class="match-title">{{ h.partido }}</div>
         <div style="font-size: 11px; color: var(--text-muted); background: #030712; padding: 8px; border-radius: 6px; margin-top: 6px;">
-            🎯 Pick: <b>{{ h.pick }}</b> | Cuota: {{ h.cuota }} | EV: {{ h.ev }} | Stake: {{ h.stake }}<br>
-            Estado: <b style="color: var(--accent-green);">{{ h.resultado }}</b>
+            🎯 Pick Liquidador: <b>{{ h.pick }}</b> | Cuota: <b>{{ h.cuota }}</b> | EV: {{ h.ev }} | Stake Kelly: {{ h.stake }}<br>
+            Resultado: <b style="color: {% if 'ACERTADO' in h.resultado %}var(--accent-green){% else %}#ef4444{% endif %};">{{ h.resultado }}</b>
         </div>
+    </div>
+    {% else %}
+    <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px;">
+        📭 NO HAY APUESTAS LIQUIDADAS AÚN. Marca partidos como ACERTADO o FALLADO para poblar el historial guardado.
     </div>
     {% endfor %}
     {% endif %}
 </body>
 </html>
-"""
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
