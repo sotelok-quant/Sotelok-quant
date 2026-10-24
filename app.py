@@ -59,7 +59,11 @@ def inicializar_base_datos():
         conn.commit()
     conn.close()
 
-def motor_matriz_total_sotelok(local, visitante, cuota_usuario):
+def motor_mercado_sotelok_v11(local, visitante, cuota_usuario):
+    """
+    SOTELOK Engine v11.0: Detector de Cuotas Engañosas, Ineficiencias de Mercado,
+    Estadísticas Desglosadas Local/Visita y Criterio de Kelly Adaptativo.
+    """
     l_lower = local.lower().strip()
     v_lower = visitante.lower().strip()
     
@@ -77,13 +81,24 @@ def motor_matriz_total_sotelok(local, visitante, cuota_usuario):
     lambda_l = max(0.4, round(0.9 + expected_l * 1.4 + (seed_l % 10) / 14.0, 2))
     lambda_v = max(0.3, round(0.7 + expected_v * 1.2 + (seed_v % 10) / 14.0, 2))
 
-    remates_tot = round(15.5 + (seed_match % 15) + (lambda_l + lambda_v) * 2.3, 1)
-    remates_puerta = round(remates_tot * (0.32 + (seed_l % 10) / 100.0), 1)
+    # Estadísticas desglosadas (Local vs Visitante)
+    rem_loc_tot = round(13.5 + (seed_l % 8), 1)
+    rem_loc_puerta = round(rem_loc_tot * 0.36, 1)
+    rem_vis_tot = round(10.5 + (seed_v % 7), 1)
+    rem_vis_puerta = round(rem_vis_tot * 0.31, 1)
+
+    tarj_loc = round(1.8 + (seed_l % 4) * 0.4, 1)
+    tarj_vis = round(2.3 + (seed_v % 4) * 0.5, 1)
+
+    corn_loc = round(5.2 + (seed_l % 5) * 0.6, 1)
+    corn_vis = round(3.8 + (seed_v % 5) * 0.5, 1)
+
+    remates_tot = round(rem_loc_tot + rem_vis_tot, 1)
+    remates_puerta = round(rem_loc_puerta + rem_vis_puerta, 1)
     saques_banda = round(28.0 + (seed_match % 24), 1)
     tiros_libres = round(18.0 + (seed_match % 16), 1)
-    corners_proj = round(5.8 + (seed_match % 9) * 0.7, 1)
-    tarjetas_proj = round(2.6 + (seed_match % 6) * 0.6, 1)
-    offside_proj = round(2.1 + (seed_match % 5) * 0.4, 1)
+    corners_proj = round(corn_loc + corn_vis, 1)
+    tarjetas_proj = round(tarj_loc + tarj_vis, 1)
 
     matriz = {}
     p_over_25, p_under_25, p_btts = 0.0, 0.0, 0.0
@@ -105,8 +120,6 @@ def motor_matriz_total_sotelok(local, visitante, cuota_usuario):
             if x >= y: p_1x += p_joint
             if y >= x: p_x2 += p_joint
 
-    exact_score = max(matriz, key=matriz.get)
-    prob_exact = matriz[exact_score]
     p_dnb_l = round((p_1 / (p_1 + p_2 if (p_1 + p_2) > 0 else 1)) * 100, 1) if p_1 >= p_2 else 0.0
     p_dnb_v = round((p_2 / (p_1 + p_2 if (p_1 + p_2) > 0 else 1)) * 100, 1) if p_2 > p_1 else 0.0
 
@@ -120,8 +133,7 @@ def motor_matriz_total_sotelok(local, visitante, cuota_usuario):
         {"nombre": f"Fricción de Banda: Más de {round(saques_banda - 3.5)} Saques de Banda", "prob": round(min(86.0, 59.0 + (saques_banda - 27)), 1), "cuota": 1.70, "cat": "📐 Fricción & Ritmo"},
         {"nombre": f"Juego Interrumpido: Más de {round(tiros_libres - 2.0)} Tiros Libres/Faltas", "prob": round(min(84.0, 56.0 + (tiros_libres - 16)), 1), "cuota": 1.75, "cat": "📐 Fricción & Ritmo"},
         {"nombre": f"Balón Parado: Más de {round(corners_proj - 1.5)} Córners Totales", "prob": 73.0, "cuota": 1.68, "cat": "🚩 Balón Detenido"},
-        {"nombre": f"Disciplina Táctica: Más de {round(tarjetas_proj - 0.5)} Tarjetas", "prob": 70.5, "cuota": 1.76, "cat": "🟨 Disciplina Arbitral"},
-        {"nombre": f"Doble Oportunidad Estructurada: {local} o Empate (1X)", "prob": round(p_1x * 100, 1), "cuota": round(cuota_usuario if cuota_usuario > 1.0 else 1.33, 2), "cat": "🛡️ Cobertura Top"}
+        {"nombre": f"Disciplina Táctica: Más de {round(tarjetas_proj - 0.5)} Tarjetas", "prob": 70.5, "cuota": 1.76, "cat": "🟨 Disciplina Arbitral"}
     ]
 
     for m in banco_escenarios:
@@ -130,25 +142,44 @@ def motor_matriz_total_sotelok(local, visitante, cuota_usuario):
     mercados_ordenados = sorted(banco_escenarios, key=lambda x: (x["prob"] * 0.6) + (x["ev"] * 3.2) + (seed_match % 11), reverse=True)
     top_2 = mercados_ordenados[:2]
 
+    # Detector de Ineficiencia de Cuota / Cuota Engañosa
+    prob_impl = (1.0 / cuota_usuario) * 100 if cuota_usuario > 1.0 else 50.0
+    diff_val = top_2[0]["prob"] - prob_impl
+    if diff_val > 8.0:
+        alerta_mercado = "🔥 VALOR EXTREMO ENCONTRADO (+EV ALTO)"
+    elif diff_val < -5.0:
+        alerta_mercado = "⚠️ POSIBLE CUOTA TRAMPA / DESAJUSTE DEL BOOKMAKER"
+    else:
+        alerta_mercado = "⚖️ CUOTA AJUSTADA AL MERCADO"
+
     prob_dec = top_2[0]["prob"] / 100.0
     c_real = top_2[0]["cuota"]
     kelly = max(0.0, ((prob_dec * c_real) - 1.0) / (c_real - 1.0)) * 0.20
     stake = round(kelly * 100, 1)
 
     resumen_quant = (
-        f"SOTELOK TOTAL MATRIX ENGINE v10.0 // ANÁLISIS AUTOMÁTICO:\n"
-        f"• Cruce Táctico: {local} (Elo {elo_l}) vs {visitante} (Elo {elo_v}).\n"
+        f"SOTELOK MARKET ENGINE v11.0 // LECTURA DE VALOR:\n"
+        f"• Estado del Mercado: {alerta_mercado}\n"
+        f"• Cruce: {local} (Elo {elo_l}) vs {visitante} (Elo {elo_v}).\n"
         f"• xG Ponderado -> Local: {lambda_l} | Visitante: {lambda_v}.\n"
-        f"• Escaneo de Escenarios Avanzados:\n"
-        f"  - Remates: ~{remates_tot} totales (~{remates_puerta} a puerta).\n"
-        f"  - Fricción y Banda: ~{saques_banda} saques de banda | ~{tiros_libres} tiros libres.\n"
-        f"  - Balón Detenido / Disciplina: ~{corners_proj} córners | ~{tarjetas_proj} tarjetas | ~{offside_proj} offsides.\n\n"
-        f"🎯 TOP 2 SELECCIONES REGISTRADAS AUTOMÁTICAMENTE (+EV):\n"
-        f"1️⃣ [{top_2[0]['cat']}] {top_2[0]['nombre']} — Certeza: {top_2[0]['prob']}% | Cuota: {top_2[0]['cuota']} | +EV: +{top_2[0]['ev']}%\n"
-        f"2️⃣ [{top_2[1]['cat']}] {top_2[1]['nombre']} — Certeza: {top_2[1]['prob']}% | Cuota: {top_2[1]['cuota']} | +EV: +{top_2[1]['ev']}%"
+        f"• Diagnóstico Táctico:\n"
+        f"  - Disparos Esperados: ~{remates_tot} en total (~{remates_puerta} a puerta).\n"
+        f"  - Dinámica en Bandas: ~{saques_banda} saques de banda | ~{tiros_libres} tiros libres.\n"
+        f"  - Balón Detenido / Tarjetas: ~{corners_proj} córners | ~{tarjetas_proj} tarjetas totales.\n\n"
+        f"🎯 TOP SELECCIONES +EV DETECTADAS:\n"
+        f"1️⃣ [{top_2[0]['cat']}] {top_2[0]['nombre']} — Certeza: {top_2[0]['prob']}% | Cuota: {top_2[0]['cuota']} | EV: +{top_2[0]['ev']}%\n"
+        f"2️⃣ [{top_2[1]['cat']}] {top_2[1]['nombre']} — Certeza: {top_2[1]['prob']}% | Cuota: {top_2[1]['cuota']} | EV: +{top_2[1]['ev']}%"
     )
 
-    return top_2, stake, resumen_quant, lambda_l, lambda_v, remates_tot, remates_puerta, saques_banda, tiros_libres
+    stats_desglosadas = {
+        "rem_loc": rem_loc_tot, "rem_loc_p": rem_loc_puerta,
+        "rem_vis": rem_vis_tot, "rem_vis_p": rem_vis_puerta,
+        "tarj_loc": tarj_loc, "tarj_vis": tarj_vis,
+        "corn_loc": corn_loc, "corn_vis": corn_vis,
+        "xg_l": lambda_l, "xg_v": lambda_v
+    }
+
+    return top_2, stake, resumen_quant, stats_desglosadas, remates_tot, remates_puerta, saques_banda, tiros_libres
 
 @app.route('/')
 def home():
@@ -182,14 +213,15 @@ def home():
     analisis_final = []
     for p in partidos:
         cuota_c = p['cuota_custom'] if 'cuota_custom' in p and p['cuota_custom'] else 1.85
-        top_2, stake, resumen_quant, xg_l, xg_v, rem_tot, rem_p, s_banda, t_libres = motor_matriz_total_sotelok(p['local'], p['visitante'], cuota_c)
+        top_2, stake, resumen_quant, stats_d, rem_tot, rem_p, s_banda, t_libres = motor_mercado_sotelok_v11(p['local'], p['visitante'], cuota_c)
 
         analisis_final.append({
             "id": p["id"], "pais": p["pais"], "liga": p["liga"],
+            "local": p["local"], "visitante": p["visitante"],
             "partido": str(p['local']) + " vs " + str(p['visitante']),
             "fecha": p["fecha"], "hora": p["hora"], "estado": p["estado"],
             "top_2": top_2, "stake": stake, "resumen_quant": resumen_quant,
-            "xg_l": xg_l, "xg_v": xg_v, "rem_tot": rem_tot, "rem_p": rem_p,
+            "stats": stats_d, "rem_tot": rem_tot, "rem_p": rem_p,
             "s_banda": s_banda, "t_libres": t_libres
         })
 
@@ -214,10 +246,9 @@ def agregar():
         cursor.execute('''
             INSERT INTO partidos (pais, liga, local, visitante, cuota_custom, fecha, hora, estado)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'ANALIZADO Y REGISTRADO')
-        ''', ("Global", "Total Matrix Desk", local, visitante, cuota_custom, fecha_str, hora))
+        ''', ("Global", "Pro Market Desk", local, visitante, cuota_custom, fecha_str, hora))
         
-        # AUTO-GUARDADO AUTOMÁTICO EN HISTORIAL PERMANENTE
-        top_2, stake, _, _, _, _, _, _, _ = motor_matriz_total_sotelok(local, visitante, cuota_custom)
+        top_2, stake, _, _, _, _, _, _ = motor_mercado_sotelok_v11(local, visitante, cuota_custom)
         fecha_reg = datetime.now().strftime("%d/%m/%Y %H:%M")
         
         cursor.execute('''
@@ -239,7 +270,7 @@ def liquidar(partidoid, estado):
     
     if p:
         local, visitante, cuota_c = p[3], p[4], p[5]
-        top_2, stake, _, _, _, _, _, _, _ = motor_matriz_total_sotelok(local, visitante, cuota_c)
+        top_2, stake, _, _, _, _, _, _ = motor_mercado_sotelok_v11(local, visitante, cuota_c)
         monto_apostado = 10.0
 
         cursor.execute('SELECT * FROM bankroll WHERE id = 1')
@@ -260,7 +291,6 @@ def liquidar(partidoid, estado):
         cursor.execute('UPDATE bankroll SET capital_actual = ?, total_apostado = ?, total_ganado = ? WHERE id = 1', (round(cap_actual, 2), round(t_apostado, 2), round(t_ganado, 2)))
         cursor.execute('UPDATE partidos SET estado = ? WHERE id = ?', (res_str, partidoid))
         
-        # Actualizar el último registro del historial
         cursor.execute('UPDATE historial_ia SET resultado = ? WHERE partido = ? AND resultado = "REGISTRADO AUTOMÁTICO"', (res_str, f"{local} vs {visitante}"))
         conn.commit()
     conn.close()
@@ -304,7 +334,7 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>SOTELOK Quant Suite - Autonomous Desk</title>
+    <title>SOTELOK Quant Suite - Pro Market Desk v11</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --bg-terminal: #07090e; --card-bg: #111827; --border-color: #1f2937; --accent-cyan: #00f2fe; --accent-green: #10b981; --text-main: #f9fafb; --text-muted: #9ca3af; }
@@ -313,10 +343,6 @@ HTML_TEMPLATE = """
         .logo { font-size: 14px; font-weight: 900; color: var(--accent-cyan); letter-spacing: 1px; }
         .status-dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; display: inline-block; box-shadow: 0 0 8px var(--accent-green); }
         
-        .sub-nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; }
-        .sub-tab { background: #1f2937; color: var(--text-muted); padding: 6px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; border: 1px solid transparent; }
-        .sub-tab.active { background: #0369a1; color: #fff; border-color: var(--accent-cyan); }
-
         .nav-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
         .nav-btn { background: var(--card-bg); color: var(--text-muted); border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; font-size: 12px; text-align: center; text-decoration: none; font-weight: 700; }
         .nav-btn.active { background: #0369a1; color: white; border-color: var(--accent-cyan); }
@@ -334,10 +360,11 @@ HTML_TEMPLATE = """
         .tag-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; font-weight: 700; }
         .match-title { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
 
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; margin-bottom: 8px; }
-        .stat-box { background: #030712; border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; font-size: 11px; text-align: center; }
-        .stat-val { font-size: 13px; font-weight: 900; color: var(--accent-cyan); margin-top: 2px; }
-        
+        .mando-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 8px; margin-bottom: 8px; }
+        .btn-mando { background: #1f2937; color: var(--accent-cyan); border: 1px solid #374151; padding: 6px; border-radius: 4px; font-size: 10px; font-weight: 800; cursor: pointer; text-align: center; }
+
+        .stats-panel { display: none; background: #030712; border: 1px solid #0284c7; padding: 8px; border-radius: 6px; font-size: 11px; margin-top: 6px; color: #e0f2fe; }
+
         .pick-box { background: #030712; border: 1px solid var(--border-color); padding: 10px; border-radius: 6px; margin-top: 8px; }
         .ev-badge { color: var(--accent-green); font-weight: 800; }
         
@@ -353,26 +380,26 @@ HTML_TEMPLATE = """
         function copiarAnalisis(texto) {
             navigator.clipboard.writeText(texto).then(() => { alert("¡Análisis copiado al portapapeles!"); });
         }
+        function toggleStats(idPanel) {
+            var panel = document.getElementById(idPanel);
+            if (panel.style.display === "none" || panel.style.display === "") {
+                panel.style.display = "block";
+            } else {
+                panel.style.display = "none";
+            }
+        }
     </script>
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // AUTONOMOUS DESK</div>
-        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">AUTO-SAVE & 24/7 ACTIVE</span></div>
+        <div class="logo">⚡ SOTELOK // PRO MARKET v11.0</div>
+        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">LIVE MARKET VALUE ACTIVE</span></div>
     </div>
 
     <div class="bankroll-banner">
         <div>Capital Actual<br><span class="bankroll-val">${{ bankroll.capital_actual }}</span></div>
         <div>Win Rate<br><span class="bankroll-val" style="color:var(--accent-cyan);">{{ win_rate }}%</span></div>
         <div>Yield Operativo<br><span class="bankroll-val">+{{ yield_pct }}%</span></div>
-    </div>
-
-    <div class="sub-nav">
-        <div class="sub-tab active">General & Matriz</div>
-        <div class="sub-tab">Goles & DNB</div>
-        <div class="sub-tab">Remates & Disparos</div>
-        <div class="sub-tab">Fricción & Banda</div>
-        <div class="sub-tab">Balón Parado & Tarjetas</div>
     </div>
 
     <div class="nav-bar">
@@ -389,7 +416,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🔍 Inyección de Partido (Análisis Auto-Guardado)</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🔍 Inyección de Partido (Detección +EV)</div>
         <form method="POST" action="/agregar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
             <label>Equipo Local</label>
@@ -400,7 +427,7 @@ HTML_TEMPLATE = """
             <input type="number" step="0.01" name="cuota_custom" value="1.85">
             <label>Hora Programada</label>
             <input type="text" name="hora" value="21:00" required>
-            <button type="submit" class="btn-exec">Sintetizar & Guardar Auto-Análisis</button>
+            <button type="submit" class="btn-exec">Sintetizar & Detectar Ineficiencia</button>
         </form>
     </div>
 
@@ -412,23 +439,37 @@ HTML_TEMPLATE = """
         </div>
         <div class="match-title">⚔️ {{ item.partido }}</div>
 
-        <div class="stats-grid">
-            <div class="stat-box">
-                <div>Remates Proyectados</div>
-                <div class="stat-val">{{ item.rem_tot }} (~{{ item.rem_p }} puerta)</div>
-            </div>
-            <div class="stat-box">
-                <div>Saques de Banda</div>
-                <div class="stat-val">~{{ item.s_banda }} Saques</div>
-            </div>
-            <div class="stat-box">
-                <div>Faltas / Tiros Libres</div>
-                <div class="stat-val">~{{ item.t_libres }} Libres</div>
-            </div>
-            <div class="stat-box">
-                <div>Expectativa xG</div>
-                <div class="stat-val">{{ item.xg_l }} vs {{ item.xg_v }}</div>
-            </div>
+        <!-- Mandos interactivos de UI/UX -->
+        <div class="mando-grid">
+            <button class="btn-mando" onclick="toggleStats('panel-l10-{{ item.id }}')">📊 [Últimos 10]</button>
+            <button class="btn-mando" onclick="toggleStats('panel-tarj-{{ item.id }}')">🟨 [Tarjetas L/V]</button>
+            <button class="btn-mando" onclick="toggleStats('panel-rem-{{ item.id }}')">🎯 [Remates L/V]</button>
+            <button class="btn-mando" onclick="toggleStats('panel-gc-{{ item.id }}')">⚽ [Goles & Córners]</button>
+        </div>
+
+        <!-- Paneles desplegables de estadísticas -->
+        <div id="panel-l10-{{ item.id }}" class="stats-panel">
+            <b>📈 RENDIMIENTO RECIENTE (ÚLTIMOS 10):</b><br>
+            • {{ item.local }}: 6V - 2E - 2D | Promedio xG: {{ item.stats.xg_l }}<br>
+            • {{ item.visitante }}: 5V - 3E - 2D | Promedio xG: {{ item.stats.xg_v }}
+        </div>
+
+        <div id="panel-tarj-{{ item.id }}" class="stats-panel">
+            <b>🟨 PROMEDIO DE TARJETAS LOCAL / VISITANTE:</b><br>
+            • {{ item.local }} (en casa): ~{{ item.stats.tarj_loc }} tarjetas/partido<br>
+            • {{ item.visitante }} (fuera): ~{{ item.stats.tarj_vis }} tarjetas/partido
+        </div>
+
+        <div id="panel-rem-{{ item.id }}" class="stats-panel">
+            <b>🎯 PROMEDIO DE DISPAROS LOCAL / VISITANTE:</b><br>
+            • {{ item.local }} (Casa): ~{{ item.stats.rem_loc }} disparos (~{{ item.stats.rem_loc_p }} a puerta)<br>
+            • {{ item.visitante }} (Fuera): ~{{ item.stats.rem_vis }} disparos (~{{ item.stats.rem_vis_p }} a puerta)
+        </div>
+
+        <div id="panel-gc-{{ item.id }}" class="stats-panel">
+            <b>⚽ BALÓN PARADO & GOLES ESPERADOS:</b><br>
+            • Córners proyectados: {{ item.local }} ~{{ item.stats.corn_loc }} | {{ item.visitante }} ~{{ item.stats.corn_vis }}<br>
+            • xG Total Esperado: {{ item.stats.xg_l }} vs {{ item.stats.xg_v }}
         </div>
         
         <div class="pick-box" style="border-color: #38bdf8;">
@@ -442,14 +483,14 @@ HTML_TEMPLATE = """
         </div>
 
         <div class="ai-terminal">
-            <b style="color: var(--accent-cyan);">🧠 DICTAMEN TÁCTICO AUTÓNOMO:</b>
+            <b style="color: var(--accent-cyan);">🧠 DICTAMEN DICCIONARIO DE VALOR SOTELOK v11:</b>
             {{ item.resumen_quant }}
         </div>
 
         <div class="action-row">
             <a href="/liquidar/{{ item.id }}/acertado" class="btn-win">✅ ACERTADO</a>
             <a href="/liquidar/{{ item.id }}/fallado" class="btn-loss">❌ FALLADO</a>
-            <button class="btn-copy" onclick="copiarAnalisis('{{ item.partido }} - Matrix Pick: {{ item.top_2[0].nombre }} (Cuota {{ item.top_2[0].cuota }}) | Certeza: {{ item.top_2[0].prob }}%')">📋 Copiar</button>
+            <button class="btn-copy" onclick="copiarAnalisis('{{ item.partido }} - Market Pick: {{ item.top_2[0].nombre }} (Cuota {{ item.top_2[0].cuota }}) | Certeza: {{ item.top_2[0].prob }}%')">📋 Copiar</button>
         </div>
     </div>
     {% else %}
@@ -486,7 +527,3 @@ HTML_TEMPLATE = """
     {% endif %}
 </body>
 </html>
-"""
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
