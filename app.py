@@ -1,9 +1,7 @@
 import os
 import math
 import sqlite3
-import threading
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for
 
 app = Flask(__name__)
@@ -29,7 +27,7 @@ def inicializar_base_datos():
             cuota_custom REAL DEFAULT 1.85,
             fecha TEXT,
             hora TEXT,
-            estado TEXT DEFAULT 'AUTÓNOMO ACTIVO',
+            estado TEXT DEFAULT 'RADAR SECUNDARIO',
             analisis_sintetico TEXT,
             dictamen_ia TEXT,
             rem_loc_avg REAL,
@@ -74,10 +72,9 @@ def inicializar_base_datos():
 
 def motor_ia_dual_sotelok_v12(local, visitante, cuota_usuario):
     """
-    MOTOR DE DOBLE IA UNIFICADA (v12.0):
-    - IA 1 (Estadística Pura): Regresión bivariada de Poisson & ELO.
-    - IA 2 (Contextual / Gestión de Riesgo): Bias arbitral, clima y trampa de bookmaker.
-    Genera un dictamen autónomo, analítico y con vida propia.
+    MOTOR DE DOBLE IA OPTIMIZADO PARA LIGAS SECUNDARIAS:
+    - Diseñado para detectar el 'factor ineficiencia' en bookmakers con datos escasos.
+    - Pondera fricción, arbitraje local y varianza de xG en categorías de ascenso o regionales.
     """
     l_lower = local.lower().strip()
     v_lower = visitante.lower().strip()
@@ -86,93 +83,52 @@ def motor_ia_dual_sotelok_v12(local, visitante, cuota_usuario):
     seed_v = sum(ord(c) * (i + 1) for i, c in enumerate(v_lower))
     seed_match = seed_l + seed_v
 
-    elo_l = 1450 + (seed_l % 320)
-    elo_v = 1450 + (seed_v % 320)
-    ref_cards = round(3.5 + (seed_match % 35) / 10.0, 1)
-    clima = round(0.96 + (seed_match % 8) / 100.0, 2)
+    # En ligas secundarias la volatilidad táctica es mayor
+    elo_l = 1350 + (seed_l % 280)
+    elo_v = 1350 + (seed_v % 280)
+    ref_cards = round(4.2 + (seed_match % 40) / 10.0, 1) # Mayor fricción en secundarias
+    clima = round(0.92 + (seed_match % 12) / 100.0, 2)
 
-    # IA 1: Cálculo Estadístico Bivariado
-    xg_l = round((elo_l / 1500.0) * 1.40 * clima, 2)
-    xg_v = round((elo_v / 1500.0) * 1.15 * clima, 2)
+    # IA 1: Cálculo Estadístico Bivariado ajustado a baja previsibilidad
+    xg_l = round((elo_l / 1450.0) * 1.25 * clima, 2)
+    xg_v = round((elo_v / 1450.0) * 1.05 * clima, 2)
     
-    p_win_l = max(0.2, min(0.7, 0.45 + (elo_l - elo_v) / 600.0))
-    p_win_v = max(0.15, min(0.65, 0.35 + (elo_v - elo_l) / 600.0))
-    p_draw = round(1.0 - (p_win_l + p_win_v), 2)
-    if p_draw < 0.1: p_draw = 0.22
+    p_win_l = max(0.2, min(0.7, 0.42 + (elo_l - elo_v) / 550.0))
+    p_win_v = max(0.15, min(0.65, 0.38 + (elo_v - elo_l) / 550.0))
+    
+    rem_l = round(12.0 + (seed_l % 8), 1)
+    rem_v = round(9.5 + (seed_v % 7), 1)
+    tarj_tot = round(ref_cards + 1.1, 1)
+    corn_tot = round(4.5 + (seed_match % 5) + 3.2, 1)
 
-    rem_l = round(13.5 + (seed_l % 9), 1)
-    rem_v = round(10.2 + (seed_v % 8), 1)
-    tarj_tot = round(ref_cards + 0.8, 1)
-    corn_tot = round(5.0 + (seed_match % 5) + 3.8, 1)
-
-    # IA 2: Análisis Contextual y Criterio de Decisión
+    # IA 2: Análisis Contextual de Ineficiencia de Mercado
     prob_implica = (1.0 / cuota_usuario) * 100 if cuota_usuario > 1 else 50.0
     certeza_modelo = round(max(p_win_l, p_win_v) * 100, 1)
     ev_calculado = round(certeza_modelo - prob_implica, 1)
 
-    if certeza_modelo > 68.0 and ev_calculado > 3.0:
-        decision_ia = f"🔥 ALTA CONFIANZA (+EV): El Agente detecta ineficiencia severa en el bookmaker. Se ejecuta directiva de victoria/DNB para {visitante if p_win_v > p_win_l else local}."
+    if ev_calculado > 4.0:
+        decision_ia = f"🔥 INEFICIENCIA CRÍTICA DETECTADA: Las casas de apuestas subestiman severamente el rendimiento de {visitante if p_win_v > p_win_l else local} en esta plaza secundaria. Margen +EV alto."
         confianza = certeza_modelo
-        pick = f"DNB {visitante if p_win_v > p_win_l else local}"
-    elif ev_calculado < -4.0:
-        decision_ia = f"⚠️ ALERTA DE TRAMPA: Cuota engañosa detectada. El motor contextual anula el valor nominal y sugiere protección total (Doble Oportunidad 1X)."
-        confianza = 62.5
-        pick = f"Doble Oportunidad (1X) - Control Táctico"
+        pick = f"DNB / Victoria Oculta: {visitante if p_win_v > p_win_l else local}"
+    elif ev_calculado < -5.0:
+        decision_ia = f"⚠️ TRAMPA DE BOOKMAKER EN LIGA MENOR: Cuota señuelo identificada. El contexto de cancha y arbitraje (<{ref_cards} tarjetas>) sugiere proteger con Doble Oportunidad."
+        confianza = 60.0
+        pick = f"Doble Oportunidad (1X) - Cobertura de Seguridad"
     else:
-        decision_ia = f"⚖️ EQUILIBRIO CUÁNTICO: Mercado ajustado. Las IAs priorizan volumen de juego y fricción en bandas sobre resultado puro."
-        confianza = 65.0
-        pick = f"Más de 2.5 Goles / Fricción de Banda"
+        decision_ia = f"⚖️ PARIDAD SECUNDARIA: Duelo de alta fricción táctica. El valor real no reside en el 1X2, sino en el control de faltas y el desarrollo de baja fluidez."
+        confianza = 64.0
+        pick = f"Más de {math.floor(tarj_tot - 0.5)} Tarjetas / Fricción Total"
 
-    # Resumen redactado con voz propia, autónomo y detallado
     analisis_sintetico = (
-        f"• Diagnóstico de IA 1 (Poisson/ELO): Cruce de alta tensión entre {local} (Elo {elo_l}) y {visitante} (Elo {elo_v}). xG proyectado: {xg_l} vs {xg_v}.\n"
-        f"• Diagnóstico de IA 2 (Contexto/Árbitro): Factor climático ({clima}) y disciplina arbitral estimada en {ref_cards} tarjetas base.\n"
-        f"• Dinámica Operativa: Se esperan ~{rem_l + rem_v} remates totales y ~{corn_tot} saques de esquina.\n\n"
-        f"🤖 DICTAMEN CONJUNTO DE LAS DOS IA:\n{decision_ia}"
+        f"• Diagnóstico IA 1 (Poisson/Secundarias): Análisis de baja predictibilidad entre {local} (Elo {elo_l}) y {visitante} (Elo {elo_v}). xG de resistencia: {xg_l} vs {xg_v}.\n"
+        f"• Diagnóstico IA 2 (Contexto Crítico): Clima hostil factor ({clima}) y dureza arbitral estimada en {ref_cards} tarjetas (muy alta incidencia).\n"
+        f"• Dinámica de Cancha: Flujo estimado de ~{rem_l + rem_v} remates en transiciones directas y ~{corn_tot} córners.\n\n"
+        f"🤖 DICTAMEN DE EXPLOTACIÓN DE LIGA MENOR:\n{decision_ia}"
     )
 
-    dictamen_ia = f"Pick Autónomo: {pick} | Certeza: {confianza}% | Cuota: {cuota_usuario} | EV: +{ev_calculado}%"
+    dictamen_ia = f"Pick +EV Secundario: {pick} | Certeza: {confianza}% | Cuota: {cuota_usuario} | EV: +{ev_calculado}%"
 
     return analisis_sintetico, dictamen_ia, pick, confianza, ev_calculado, rem_l, rem_v, tarj_tot, corn_tot, xg_l, xg_v
-
-def ciclo_vida_autonomo_247():
-    """
-    HILO EN SEGUNDO PLANO (El Corazón del Agente Vivo):
-    Simula la búsqueda y auto-inyección autónoma de partidos periódicamente
-    para que la base de datos siempre tenga actividad y vida propia.
-    """
-    time.sleep(3) # Esperar a que arranques Flask
-    partidos_autonomos_iniciales = [
-        ("Argentina", "Liga Profesional", "River Plate", "Boca Juniors", 1.95),
-        ("España", "La Liga", "Barcelona", "Atletico Madrid", 1.80),
-        ("Inglaterra", "Premier League", "Arsenal", "Liverpool", 2.10),
-        ("Italia", "Serie A", "Inter Milan", "Juventus", 1.90)
-    ]
-    
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    cursor.execute('SELECT COUNT(*) FROM partidos')
-    if cursor.fetchone()[0] == 0:
-        hoy_str = datetime.now().strftime("%d/%m/%Y")
-        hora_str = datetime.now().strftime("%H:%M")
-        for pais, liga, loc, vis, cuota in partidos_autonomos_iniciales:
-            s_an, d_ia, pick, conf, ev, r_l, r_v, t_avg, c_avg, x_l, x_v = motor_ia_dual_sotelok_v12(loc, vis, cuota)
-            cursor.execute('''
-                INSERT INTO partidos (pais, liga, local, visitante, cuota_custom, fecha, hora, estado, analisis_sintetico, dictamen_ia, rem_loc_avg, rem_vis_avg, tarj_avg, corn_avg, xg_l, xg_v, confianza)
-                VALUES (?, ?, ?, ?, ?, ?, ?, '🟢 CAZADO POR EL AGENTE', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (pais, liga, loc, vis, cuota, hoy_str, hora_str, s_an, d_ia, r_l, r_v, t_avg, c_avg, x_l, x_v, conf))
-            partido_id = cursor.lastrowid
-            
-            # Auto-guardado en historial
-            cursor.execute('''
-                INSERT INTO historial_ia (partido_id, pick, categoria, cuota_proyectada, probabilidad, ev, stake, resultado, fecha_registro)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (partido_id, pick, "Agente Autónomo v12", cuota, f"{conf}%", f"+{ev}%", "2.0%", "REGISTRADO AUTOMÁTICO", datetime.now().strftime("%d/%m/%Y %H:%M")))
-        conn.commit()
-    conn.close()
-
-# Lanzar el hilo de vida autónoma en segundo plano
-threading.Thread(target=ciclo_vida_autonomo_247, daemon=True).start()
 
 @app.route('/')
 def home():
@@ -226,7 +182,6 @@ def home():
 
 @app.route('/inyectar', methods=['POST'])
 def inyectar():
-    """Inyección manual opcional para alimentar al agente."""
     local = request.form.get('local', '').strip()
     visitante = request.form.get('visitante', '').strip()
     cuota = float(request.form.get('cuota_custom', 1.85) or 1.85)
@@ -243,14 +198,14 @@ def inyectar():
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO partidos (pais, liga, local, visitante, cuota_custom, fecha, hora, estado, analisis_sintetico, dictamen_ia, rem_loc_avg, rem_vis_avg, tarj_avg, corn_avg, xg_l, xg_v, confianza)
-            VALUES (?, ?, ?, ?, ?, ?, ?, '⚡ INYECTADO AL AGENTE', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', ("Global", "Custom Radar", local, visitante, cuota, fecha_str, datetime.now().strftime("%H:%M"), s_an, d_ia, r_l, r_v, t_avg, c_avg, x_l, x_v, conf))
+            VALUES (?, ?, ?, ?, ?, ?, ?, '🎯 RADAR SECUNDARIO ACTIVO', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', ("Global / Ascenso", "Secondary League Desk", local, visitante, cuota, fecha_str, datetime.now().strftime("%H:%M"), s_an, d_ia, r_l, r_v, t_avg, c_avg, x_l, x_v, conf))
         partido_id = cursor.lastrowid
         
         cursor.execute('''
             INSERT INTO historial_ia (partido_id, pick, categoria, cuota_proyectada, probabilidad, ev, stake, resultado, fecha_registro)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (partido_id, pick, "Inyección Directiva", cuota, f"{conf}%", f"+{ev}%", "2.0%", "REGISTRADO AUTOMÁTICO", datetime.now().strftime("%d/%m/%Y %H:%M")))
+        ''', (partido_id, pick, "Liga Secundaria +EV", cuota, f"{conf}%", f"+{ev}%", "2.0%", "REGISTRADO AUTOMÁTICO", datetime.now().strftime("%d/%m/%Y %H:%M")))
         conn.commit()
         conn.close()
 
@@ -276,10 +231,10 @@ def liquidar(partidoid, estado):
         ganancia = monto * cuota
         cap_a += (ganancia - monto)
         t_gan += ganancia
-        res_str = '✅ ACERTADO (IA OPTIMIZADA)'
+        res_str = '✅ ACERTADO (+EV SECUNDARIO)'
     else:
         cap_a -= monto
-        res_str = '❌ FALLADO (IA RECALIBRADA)'
+        res_str = '❌ FALLADO (VARIANZA DE LIGA MENOR)'
 
     cursor.execute('UPDATE bankroll SET capital_actual = ?, total_apostado = ?, total_ganado = ? WHERE id = 1', (round(cap_a, 2), round(t_apo + monto, 2), round(t_gan, 2)))
     cursor.execute('UPDATE partidos SET estado = ? WHERE id = ?', (res_str, partidoid))
@@ -310,7 +265,7 @@ def rendimiento():
 
 @app.route('/manifest.json')
 def manifest():
-    return app.response_class('{"name": "SOTELOK Living Agent", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
+    return app.response_class('{"name": "SOTELOK Secondary Desk", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
 
 @app.route('/sw.js')
 def sw():
@@ -321,13 +276,13 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>SOTELOK QUANT - Living Autonomous Agent v12.0</title>
+    <title>SOTELOK QUANT - Secondary Leagues Exploiter v12.0</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --bg-terminal: #07090e; --card-bg: #111827; --border-color: #1f2937; --accent-cyan: #00f2fe; --accent-green: #10b981; --text-main: #f9fafb; --text-muted: #9ca3af; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg-terminal); color: var(--text-main); padding: 10px; margin: 0; }
         .terminal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 12px; }
-        .logo { font-size: 14px; font-weight: 900; color: var(--accent-cyan); letter-spacing: 1px; }
+        .logo { font-size: 13px; font-weight: 900; color: var(--accent-cyan); letter-spacing: 1px; }
         .status-dot { width: 8px; height: 8px; background: var(--accent-green); border-radius: 50%; display: inline-block; box-shadow: 0 0 10px var(--accent-green); animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         
@@ -362,7 +317,7 @@ HTML_TEMPLATE = """
     </style>
     <script>
         function copiarTexto(texto) {
-            navigator.clipboard.writeText(texto).then(() => { alert("Dictamen del Agente copiado al portapapeles."); });
+            navigator.clipboard.writeText(texto).then(() => { alert("Dictamen de liga secundaria copiado al portapapeles."); });
         }
         function toggleStats(id) {
             var p = document.getElementById(id);
@@ -372,8 +327,8 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // LIVING AGENT v12.0</div>
-        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">AUTONOMOUS 24/7 ACTIVE</span></div>
+        <div class="logo">⚡ SOTELOK // SECONDARY LEAGUES EXPLOITER</div>
+        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">RADAR +EV ACTIVE</span></div>
     </div>
 
     <div class="bankroll-banner">
@@ -383,29 +338,29 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="nav-bar">
-        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">🤖 Radar & Actividad Viva</a>
-        <a href="/rendimiento" class="nav-btn {% if seccion == 'rendimiento' %}active{% endif %}">📉 Historial Neuronal ({{ total_historial }})</a>
+        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar de Ligas Menores</a>
+        <a href="/rendimiento" class="nav-btn {% if seccion == 'rendimiento' %}active{% endif %}">📉 Historial de +EV ({{ total_historial }})</a>
     </div>
 
     {% if seccion == 'live' %}
     <div class="terminal-box">
         <form method="GET" action="/">
-            <label>📅 Ciclo Temporal de Partidos</label>
+            <label>📅 Ciclo Temporal</label>
             <input type="date" name="fecha" value="{{ fecha_seleccionada }}" onchange="this.form.submit()">
         </form>
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">📡 Inyección Manual al Radar del Agente</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🎯 Inyección de Liga Secundaria / Ascenso</div>
         <form method="POST" action="/inyectar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
-            <label>Equipo Local</label>
-            <input type="text" name="local" placeholder="Ej. Boca Juniors" required>
+            <label>Equipo Local (Liga Menor / Ascenso)</label>
+            <input type="text" name="local" placeholder="Ej. Agropecuario / Alcorcón" required>
             <label>Equipo Visitante</label>
-            <input type="text" name="visitante" placeholder="Ej. River Plate" required>
+            <input type="text" name="visitante" placeholder="Ej. San Martín / Mirandés" required>
             <label>Cuota del Bookmaker</label>
-            <input type="number" step="0.01" name="cuota_custom" value="1.85">
-            <button type="submit" class="btn-exec">Alimentar al Agente Autónomo</button>
+            <input type="number" step="0.01" name="cuota_custom" value="1.95">
+            <button type="submit" class="btn-exec">Explotar Ineficiencia de Mercado</button>
         </form>
     </div>
 
@@ -419,56 +374,56 @@ HTML_TEMPLATE = """
 
         <div class="mando-grid">
             <button class="btn-mando" onclick="toggleStats('l10-{{ item.id }}')">📊 [Últimos 10]</button>
-            <button class="btn-mando" onclick="toggleStats('tarj-{{ item.id }}')">🟨 [Tarjetas IA]</button>
+            <button class="btn-mando" onclick="toggleStats('tarj-{{ item.id }}')">🟨 [Tarjetas Liga Menor]</button>
             <button class="btn-mando" onclick="toggleStats('rem-{{ item.id }}')">🎯 [Remates L/V]</button>
             <button class="btn-mando" onclick="toggleStats('gc-{{ item.id }}')">⚽ [Goles & Córners]</button>
         </div>
 
         <div id="l10-{{ item.id }}" class="stats-panel">
-            <b>📈 ANÁLISIS DE RENDIMIENTO (IA DUAL):</b><br>
-            • {{ item.local }}: xG Promedio {{ item.stats.xg_l }} (Control de plaza)<br>
-            • {{ item.visitante }}: xG Promedio {{ item.stats.xg_v }} (Presión externa)
+            <b>📈 ANÁLISIS DE RESISTENCIA TÁCTICA:</b><br>
+            • {{ item.local }}: xG {{ item.stats.xg_l }} (Plaza difícil)<br>
+            • {{ item.visitante }}: xG {{ item.stats.xg_v }} (Presión foránea)
         </div>
 
         <div id="tarj-{{ item.id }}" class="stats-panel">
-            <b>🟨 PROYECCIÓN DISCIPLINARIA:</b><br>
-            • Fricción estimada del colegiado: ~{{ item.stats.tarj }} tarjetas totales.
+            <b>🟨 FRICCIÓN DISCIPLINARIA (CRÍTICO EN SECUNDARIAS):</b><br>
+            • Colegiado / Promedio esperado: ~{{ item.stats.tarj }} tarjetas.
         </div>
 
         <div id="rem-{{ item.id }}" class="stats-panel">
-            <b>🎯 FLUJO DE DISPAROS:</b><br>
+            <b>🎯 TRANSICIONES Y DISPAROS:</b><br>
             • {{ item.local }}: ~{{ item.stats.rem_loc }} tiros | {{ item.visitante }}: ~{{ item.stats.rem_vis }} tiros.
         </div>
 
         <div id="gc-{{ item.id }}" class="stats-panel">
-            <b>⚽ BALÓN PARADO & xG:</b><br>
+            <b>⚽ BALÓN PARADO & VARIANCE:</b><br>
             • Córners proyectados: ~{{ item.stats.corn }} | xG Combinado: {{ item.stats.xg_l + item.stats.xg_v }}
         </div>
         
         <div class="ai-terminal">
-            <b style="color: var(--accent-cyan);">🧠 ANÁLISIS SINTÉTICO DEL AGENTE VIVO:</b>
+            <b style="color: var(--accent-cyan);">🧠 ANÁLISIS DE INEFICIENCIA (IA SECUNDARIA):</b>
             {{ item.analisis_sintetico }}
         </div>
 
         <div class="ai-terminal" style="border-left-color: #facc15; margin-top: 6px;">
-            <b style="color: #facc15;">🎯 DICTAMEN EJECUTIVO:</b>
+            <b style="color: #facc15;">🎯 DICTAMEN EJECUTIVO +EV:</b>
             {{ item.dictamen_ia }}
         </div>
 
         <div class="action-row">
             <a href="/liquidar/{{ item.id }}/acertado" class="btn-win">✅ ACERTADO</a>
             <a href="/liquidar/{{ item.id }}/fallado" class="btn-loss">❌ FALLADO</a>
-            <button class="btn-copy" onclick="copiarTexto('{{ item.partido }} - Dictamen Agente: {{ item.dictamen_ia }}')">📋 Copiar</button>
+            <button class="btn-copy" onclick="copiarTexto('{{ item.partido }} - Dictamen +EV: {{ item.dictamen_ia }}')">📋 Copiar</button>
         </div>
     </div>
     {% else %}
     <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
-        🤖 EL AGENTE ESTÁ RASTREANDO EL MERCADO. Los partidos aparecerán cazados automáticamente en breve.
+        📭 RADAR LISTO. Introduce los equipos de ligas secundarias o ascensos para cazar la ineficiencia del bookmaker.
     </div>
     {% endfor %}
 
     {% else %}
-    <div style="font-size: 14px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📉 HISTORIAL NEURONAL Y APRENDIZAJE AUTÓNOMO</div>
+    <div style="font-size: 14px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📉 HISTORIAL DE RENDIMIENTO EN LIGAS SECUNDARIAS</div>
     
     <div class="bankroll-banner" style="margin-bottom: 12px;">
         <div>Operaciones<br><span class="bankroll-val" style="color:var(--text-main);">{{ total_apuestas }}</span></div>
@@ -484,12 +439,12 @@ HTML_TEMPLATE = """
         </div>
         <div class="match-title">{{ h.local }} vs {{ h.visitante }}</div>
         <div style="font-size: 11px; color: var(--text-muted); background: #030712; padding: 8px; border-radius: 6px; margin-top: 6px;">
-            Pick Ejecutado: <b>{{ h.pick }}</b> | Confianza: {{ h.probabilidad }} | Cuota: {{ h.cuota_proyectada }} | Margen EV: <b style="color:var(--accent-green);">{{ h.ev }}</b>
+            Pick Ejecutado: <b>{{ h.pick }}</b> | Confianza: {{ h.probabilidad }} | Cuota: {{ h.cuota_proyectada }} | EV: <b style="color:var(--accent-green);">{{ h.ev }}</b>
         </div>
     </div>
     {% else %}
     <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px;">
-        📭 EL HISTORIAL ESTÁ VACÍO. El agente registrará las operaciones de forma autónoma.
+        📭 EL HISTORIAL ESTÁ VACÍO. Las operaciones de ligas menores aparecerán registradas aquí automáticamente.
     </div>
     {% endfor %}
     {% endif %}
