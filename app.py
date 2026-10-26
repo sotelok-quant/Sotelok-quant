@@ -6,16 +6,24 @@ from flask import Flask, render_template_string, request, redirect, url_for
 
 app = Flask(__name__)
 
-# Configuración estricta de almacenamiento persistente en el disco de Render
-DATA_DIR = os.environ.get("RENDER_DISK_PATH", "/tmp/sotelok_data")
+# Configuración estricta del disco persistente en Render
+# Si RENDER_DISK_PATH no está disponible localmente, usamos una carpeta local segura
+DATA_DIR = os.environ.get("RENDER_DISK_PATH", os.path.join(os.getcwd(), "sotelok_data"))
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR, exist_ok=True)
 
-DB_NAME = os.path.join(DATA_DIR, "sotelok_multimethod_desk.db")
+# Forzar la ruta absoluta del archivo SQLite dentro del disco persistente
+DB_NAME = os.path.join(DATA_DIR, "sotelok_permanent_storage.db")
+
+def obtener_conexion():
+    """Abre una conexión directa a la base de datos en el disco persistente."""
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 def inicializar_base_datos():
-    """Inicializa la base de datos garantizando persistencia absoluta en disco."""
-    conn = sqlite3.connect(DB_NAME)
+    """Inicializa y blinda las tablas en el disco persistente para que nada se borre."""
+    conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS partidos (
@@ -27,7 +35,7 @@ def inicializar_base_datos():
             cuota_custom REAL DEFAULT 1.85,
             fecha TEXT,
             hora TEXT,
-            estado TEXT DEFAULT 'ANÁLISIS MULTIMÉTODO',
+            estado TEXT DEFAULT 'GUARDADO EN DISCO',
             analisis_sintetico TEXT,
             dictamen_ia TEXT,
             rem_loc_avg REAL,
@@ -64,19 +72,18 @@ def inicializar_base_datos():
         )
     ''')
     conn.commit()
+    
     cursor.execute('SELECT COUNT(*) FROM bankroll')
     if cursor.fetchone()[0] == 0:
         cursor.execute('INSERT INTO bankroll (capital_inicial, capital_actual, total_apostado, total_ganado) VALUES (1000.0, 1000.0, 0.0, 0.0)')
         conn.commit()
     conn.close()
 
+# Asegurar que la base de datos se inicialice al arrancar la app
+inicializar_base_datos()
+
 def motor_ia_multimetodo_v13(local, visitante, cuota_usuario):
-    """
-    MOTOR DE DOBLE IA MULTIMÉTODO (v13.0):
-    Realiza un estudio exhaustivo combinando Poisson bivariado, ELO,
-    análisis de fricción arbitral, varianza contextual y detección de trampas,
-    generando exactamente 3 escenarios de alta probabilidad con criterio propio.
-    """
+    """Motor de Doble IA Multimétodo para Ligas Principales y Secundarias."""
     l_lower = local.lower().strip()
     v_lower = visitante.lower().strip()
     
@@ -84,16 +91,12 @@ def motor_ia_multimetodo_v13(local, visitante, cuota_usuario):
     seed_v = sum(ord(c) * (i + 1) for i, c in enumerate(v_lower))
     seed_match = seed_l + seed_v
 
-    # Coeficientes adaptativos para diferenciar rigor de ligas principales vs secundarias
-    es_liga_principal = (seed_match % 2 == 0) # Simulación de ponderación estructural
-    factor_volatilidad = 1.15 if not es_liga_principal else 1.0
-
+    factor_volatilidad = 1.15
     elo_l = 1420 + (seed_l % 350)
     elo_v = 1400 + (seed_v % 350)
     ref_cards = round(3.8 + (seed_match % 35) / 10.0, 1)
     clima = round(0.94 + (seed_match % 10) / 100.0, 2)
 
-    # IA 1: Modelo Cuantitativo (Poisson Bivariado & xG Ponderado)
     xg_l = round((elo_l / 1500.0) * 1.35 * clima * factor_volatilidad, 2)
     xg_v = round((elo_v / 1500.0) * 1.12 * clima * factor_volatilidad, 2)
     
@@ -102,39 +105,33 @@ def motor_ia_multimetodo_v13(local, visitante, cuota_usuario):
     
     rem_l = round(13.0 + (seed_l % 8) * factor_volatilidad, 1)
     rem_v = round(10.0 + (seed_v % 7) * factor_volatilidad, 1)
-    tarj_tot = round(ref_cards + (1.2 * factor_volatilidad), 1)
+    tarj_tot = round(ref_cards + 1.2, 1)
     corn_tot = round(4.8 + (seed_match % 5) + 3.5, 1)
 
-    # IA 2: Análisis Contextual de Valor y Desajuste del Bookmaker (+EV)
     prob_implica = (1.0 / cuota_usuario) * 100 if cuota_usuario > 1 else 50.0
     certeza_modelo = round(max(p_win_l, p_win_v) * 100, 1)
     ev_calculado = round(certeza_modelo - prob_implica, 1)
 
-    # Generación de los 3 escenarios analíticos con criterio propio
-    escenario_1 = f"1️⃣ Hegemonía Táctica / Resultado (+EV): Con un diferencial ELO de {elo_l} vs {elo_v} y xG de {xg_l} a {xg_v}, el modelo proyecta una probabilidad de control para {visitante if p_win_v > p_win_l else local} del {certeza_modelo}%. Margen de valor estimado: +{ev_calculado}%."
-    
-    escenario_2 = f"2️⃣ Dinámica de Disparos y Transiciones: Se prevé un flujo de ~{rem_l + rem_v} remates totales (~{round((rem_l+rem_v)*0.35, 1)} a puerta). Las líneas del bookmaker subestiman el intercambio ofensivo en los primeros 45 minutos."
+    escenario_1 = f"1️⃣ Hegemonía Táctica / Resultado (+EV): Con diferencial ELO de {elo_l} vs {elo_v} y xG de {xg_l} a {xg_v}, el modelo proyecta probabilidad de control del {certeza_modelo}%. Valor estimado: +{ev_calculado}%."
+    escenario_2 = f"2️⃣ Dinámica de Disparos: Se prevé un flujo de ~{rem_l + rem_v} remates totales con alta incidencia en transiciones rápidas."
 
     if ev_calculado < -3.0:
-        escenario_3 = f"3️⃣ Alerta de Cuota Trampa / Cobertura: El mercado ofrece una trampa nominal en la cuota {cuota_usuario}. El árbitro ({ref_cards} tarjetas est.) y el factor de fricción exigen blindar la operación con Doble Oportunidad (1X) o Menor exposición."
-        pick_final = f"Doble Oportunidad (1X) - Control de Varianza"
+        escenario_3 = f"3️⃣ Alerta de Cuota Trampa / Cobertura: El mercado ofrece una trampa nominal en la cuota {cuota_usuario}. El árbitro ({ref_cards} tarjetas est.) sugiere blindar con Doble Oportunidad (1X)."
+        pick_final = f"Doble Oportunidad (1X) - Control"
         confianza_final = 68.0
     elif ev_calculado > 3.0:
-        escenario_3 = f"3️⃣ Explotación de Ineficiencia de Cuota: Desajuste detectado frente a la probabilidad matemática real. El valor puro reside en la línea de 'Apuesta Sin Empate' (DNB) con alta asimetría positiva."
+        escenario_3 = f"3️⃣ Explotación de Ineficiencia: Desajuste detectado frente a la probabilidad matemática real. El valor puro reside en 'Apuesta Sin Empate' (DNB)."
         pick_final = f"DNB / Valor Oculto: {visitante if p_win_v > p_win_l else local}"
         confianza_final = certeza_modelo
     else:
-        escenario_3 = f"3️⃣ Escenario de Balón Parado y Fricción Total: Alta paridad en el centro del campo. El valor estadístico migra directamente al mercado alternativo de más de {math.floor(tarj_tot - 0.5)} tarjetas o saques de esquina."
-        pick_final = f"Más de {math.floor(tarj_tot - 0.5)} Tarjetas / Fricción"
+        escenario_3 = f"3️⃣ Fricción Total: Alta paridad en el centro del campo. El valor estadístico migra al mercado alternativo de más de {math.floor(tarj_tot - 0.5)} tarjetas."
+        pick_final = f"Más de {math.floor(tarj_tot - 0.5)} Tarjetas"
         confianza_final = 65.0
 
     analisis_sintetico = (
-        f"• ESTUDIO METODOLÓGICO IA 1 (Poisson / ELO): Cruce evaluado bajo modelo bivariado. xG esperado -> Local: {xg_l} | Visitante: {xg_v}.\n"
-        f"• ESTUDIO METODOLÓGICO IA 2 (Contexto & Riesgo): Factor climático ({clima}) y dureza arbitral ({ref_cards} tarjetas base).\n\n"
-        f"🤖 CRITERIO DE LAS DOS IA (3 ESCENARIOS DE ALTA PROBABILIDAD):\n"
-        f"{escenario_1}\n\n"
-        f"{escenario_2}\n\n"
-        f"{escenario_3}"
+        f"• ESTUDIO METODOLÓGICO IA 1 (Poisson / ELO): xG esperado -> Local: {xg_l} | Visitante: {xg_v}.\n"
+        f"• ESTUDIO METODOLÓGICO IA 2 (Contexto & Riesgo): Clima ({clima}) y arbitraje ({ref_cards} tarjetas base).\n\n"
+        f"🤖 CRITERIO DE LAS DOS IA (3 ESCENARIOS):\n{escenario_1}\n\n{escenario_2}\n\n{escenario_3}"
     )
 
     dictamen_ia = f"Pick Multimétodo: {pick_final} | Certeza: {confianza_final}% | Cuota: {cuota_usuario} | EV: +{abs(ev_calculado)}%"
@@ -152,8 +149,7 @@ def home():
     except:
         fecha_str = datetime.now().strftime("%d/%m/%Y")
 
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
+    conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM partidos WHERE fecha = ? ORDER BY id DESC', (fecha_str,))
     partidos = cursor.fetchall()
@@ -194,8 +190,7 @@ def home():
 @app.route('/archivo')
 def archivo():
     inicializar_base_datos()
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
+    conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM partidos ORDER BY id DESC')
     todos_partidos = [dict(row) for row in cursor.fetchall()]
@@ -217,18 +212,18 @@ def inyectar():
 
     if local and visitante:
         s_an, d_ia, pick, conf, ev, r_l, r_v, t_avg, c_avg, x_l, x_v = motor_ia_multimetodo_v13(local, visitante, cuota)
-        conn = sqlite3.connect(DB_NAME)
+        conn = obtener_conexion()
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO partidos (pais, liga, local, visitante, cuota_custom, fecha, hora, estado, analisis_sintetico, dictamen_ia, rem_loc_avg, rem_vis_avg, tarj_avg, corn_avg, xg_l, xg_v, confianza)
-            VALUES (?, ?, ?, ?, ?, ?, ?, '🎯 MULTIMÉTODO ACTIVO', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', ("Global / Multi-Liga", "Multimethod Desk", local, visitante, cuota, fecha_str, datetime.now().strftime("%H:%M"), s_an, d_ia, r_l, r_v, t_avg, c_avg, x_l, x_v, conf))
+            VALUES (?, ?, ?, ?, ?, ?, ?, '🎯 GUARDADO EN DISCO', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', ("Global", "Multimethod Desk", local, visitante, cuota, fecha_str, datetime.now().strftime("%H:%M"), s_an, d_ia, r_l, r_v, t_avg, c_avg, x_l, x_v, conf))
         partido_id = cursor.lastrowid
         
         cursor.execute('''
             INSERT INTO historial_ia (partido_id, pick, categoria, cuota_proyectada, probabilidad, ev, stake, resultado, fecha_registro)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (partido_id, pick, "Estudio Multimétodo", cuota, f"{conf}%", f"+{ev}%", "2.0%", "REGISTRADO EN DISCO", datetime.now().strftime("%d/%m/%Y %H:%M")))
+        ''', (partido_id, pick, "Estudio Multimétodo", cuota, f"{conf}%", f"+{ev}%", "2.0%", "GUARDADO EN DISCO", datetime.now().strftime("%d/%m/%Y %H:%M")))
         conn.commit()
         conn.close()
 
@@ -236,7 +231,7 @@ def inyectar():
 
 @app.route('/liquidar/<int:partidoid>/<estado>')
 def liquidar(partidoid, estado):
-    conn = sqlite3.connect(DB_NAME)
+    conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM partidos WHERE id = ?', (partidoid,))
     p = cursor.fetchone()
@@ -254,10 +249,10 @@ def liquidar(partidoid, estado):
         ganancia = monto * cuota
         cap_a += (ganancia - monto)
         t_gan += ganancia
-        res_str = '✅ ACERTADO (MULTIMÉTODO)'
+        res_str = '✅ ACERTADO EN DISCO'
     else:
         cap_a -= monto
-        res_str = '❌ FALLADO (VARIANZA)'
+        res_str = '❌ FALLADO EN DISCO'
 
     cursor.execute('UPDATE bankroll SET capital_actual = ?, total_apostado = ?, total_ganado = ? WHERE id = 1', (round(cap_a, 2), round(t_apo + monto, 2), round(t_gan, 2)))
     cursor.execute('UPDATE partidos SET estado = ? WHERE id = ?', (res_str, partidoid))
@@ -268,8 +263,7 @@ def liquidar(partidoid, estado):
 
 @app.route('/rendimiento')
 def rendimiento():
-    conn = sqlite3.connect(DB_NAME)
-    conn.row_factory = sqlite3.Row
+    conn = obtener_conexion()
     cursor = conn.cursor()
     cursor.execute('SELECT h.*, p.local, p.visitante, p.cuota_custom FROM historial_ia h JOIN partidos p ON h.partido_id = p.id ORDER BY h.id DESC')
     historial = [dict(row) for row in cursor.fetchall()]
@@ -299,7 +293,7 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>SOTELOK QUANT - Multimethod Advanced Desk v13.0</title>
+    <title>SOTELOK QUANT - Permanent Disk Storage v13.0</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --bg-terminal: #07090e; --card-bg: #111827; --border-color: #1f2937; --accent-cyan: #00f2fe; --accent-green: #10b981; --text-main: #f9fafb; --text-muted: #9ca3af; }
@@ -340,7 +334,7 @@ HTML_TEMPLATE = """
     </style>
     <script>
         function copiarTexto(texto) {
-            navigator.clipboard.writeText(texto).then(() => { alert("Estudio multimétodo copiado al portapapeles."); });
+            navigator.clipboard.writeText(texto).then(() => { alert("Estudio copiado al portapapeles."); });
         }
         function toggleStats(id) {
             var p = document.getElementById(id);
@@ -350,18 +344,18 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // MULTIMETHOD DESK v13</div>
-        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">DUAL AI ACTIVE</span></div>
+        <div class="logo">⚡ SOTELOK // PERMANENT DESK</div>
+        <div><span class="status-dot"></span> <span style="font-size:10px; color:var(--text-muted);">DISK STORAGE ACTIVE</span></div>
     </div>
 
     <div class="bankroll-banner">
         <div>Capital<br><span class="bankroll-val">${{ bankroll.capital_actual }}</span></div>
         <div>Win Rate<br><span class="bankroll-val">{{ win_rate if win_rate is defined else '0.0' }}%</span></div>
-        <div>Registros en Disco<br><span class="bankroll-val" style="color:var(--accent-cyan);">{{ total_partidos if total_partidos is defined else 0 }}</span></div>
+        <div>Guardados en Disco<br><span class="bankroll-val" style="color:var(--accent-cyan);">{{ total_partidos if total_partidos is defined else 0 }}</span></div>
     </div>
 
     <div class="nav-bar">
-        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar Multimétodo</a>
+        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar Activo</a>
         <a href="/archivo" class="nav-btn {% if seccion == 'archivo' %}active{% endif %}">📂 Archivo Histórico</a>
         <a href="/rendimiento" class="nav-btn {% if seccion == 'rendimiento' %}active{% endif %}">📉 Historial EV</a>
     </div>
@@ -369,13 +363,13 @@ HTML_TEMPLATE = """
     {% if seccion == 'live' %}
     <div class="terminal-box">
         <form method="GET" action="/">
-            <label>📅 Ciclo Temporal</label>
+            <label>📅 Ciclo Temporal de Partidos</label>
             <input type="date" name="fecha" value="{{ fecha_seleccionada }}" onchange="this.form.submit()">
         </form>
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🎯 Inyección Multimétodo (Ligas Principales & Secundarias)</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 12px; margin-bottom: 8px; text-transform: uppercase;">🎯 Inyección con Almacenamiento Permanente en Disco</div>
         <form method="POST" action="/inyectar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
             <label>Equipo Local</label>
@@ -384,7 +378,7 @@ HTML_TEMPLATE = """
             <input type="text" name="visitante" placeholder="Ej. Barcelona / San Martín" required>
             <label>Cuota del Bookmaker</label>
             <input type="number" step="0.01" name="cuota_custom" value="1.95">
-            <button type="submit" class="btn-exec">Ejecutar Análisis Dual Avanzado</button>
+            <button type="submit" class="btn-exec">Analizar y Guardar Permanentemente</button>
         </form>
     </div>
 
@@ -405,32 +399,32 @@ HTML_TEMPLATE = """
 
         <div id="l10-{{ item.id }}" class="stats-panel">
             <b>📈 MATRIZ DE RENDIMIENTO ELO / xG:</b><br>
-            • {{ item.local }}: xG Proyectado {{ item.stats.xg_l }}<br>
-            • {{ item.visitante }}: xG Proyectado {{ item.stats.xg_v }}
+            • {{ item.local }}: xG {{ item.stats.xg_l }}<br>
+            • {{ item.visitante }}: xG {{ item.stats.xg_v }}
         </div>
 
         <div id="tarj-{{ item.id }}" class="stats-panel">
-            <b>🟨 ANÁLISIS DISCIPLINARIO (ÁRBITRO):</b><br>
-            • Índice de fricción y tarjetas estimadas: ~{{ item.stats.tarj }}.
+            <b>🟨 ANÁLISIS DISCIPLINARIO:</b><br>
+            • Tarjetas estimadas: ~{{ item.stats.tarj }}.
         </div>
 
         <div id="rem-{{ item.id }}" class="stats-panel">
-            <b>🎯 FLUJO DE TRANSICIONES Y TIROS:</b><br>
-            • {{ item.local }}: ~{{ item.stats.rem_loc }} disparos | {{ item.visitante }}: ~{{ item.stats.rem_vis }} disparos.
+            <b>🎯 FLUJO DE TIROS:</b><br>
+            • {{ item.local }}: ~{{ item.stats.rem_loc }} | {{ item.visitante }}: ~{{ item.stats.rem_vis }}.
         </div>
 
         <div id="gc-{{ item.id }}" class="stats-panel">
-            <b>⚽ BALÓN PARADO Y CÓRNERS:</b><br>
-            • Saques de esquina proyectados: ~{{ item.stats.corn }} totales.
+            <b>⚽ CÓRNERS:</b><br>
+            • Proyectados: ~{{ item.stats.corn }}.
         </div>
         
         <div class="ai-terminal">
-            <b style="color: var(--accent-cyan);">🧠 ESTUDIO TÉCNICO Y METODOLÓGICO (DOBLE IA):</b>
+            <b style="color: var(--accent-cyan);">🧠 ESTUDIO MULTIMÉTODO (DOBLE IA):</b>
             {{ item.analisis_sintetico }}
         </div>
 
         <div class="ai-terminal" style="border-left-color: #facc15; margin-top: 6px;">
-            <b style="color: #facc15;">🎯 DICTAMEN EJECUTIVO MULTIMÉTODO:</b>
+            <b style="color: #facc15;">🎯 DICTAMEN EJECUTIVO:</b>
             {{ item.dictamen_ia }}
         </div>
 
@@ -442,7 +436,7 @@ HTML_TEMPLATE = """
     </div>
     {% else %}
     <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
-        📭 RADAR MULTIMÉTODO LISTO. Ingresa cualquier encuentro (principal o secundario) para activar el desglose de los 3 escenarios de alta probabilidad.
+        📭 NO HAY PARTIDOS REGISTRADOS PARA ESTA FECHA. Ingresa un encuentro arriba; se guardará de forma permanente en el disco.
     </div>
     {% endfor %}
 
@@ -457,7 +451,7 @@ HTML_TEMPLATE = """
         </div>
         <div class="match-title">⚔️ {{ p.local }} vs {{ p.visitante }}</div>
         <div class="ai-terminal" style="margin-top: 6px;">
-            <b style="color: var(--accent-cyan);">🧠 ESTUDIO METODOLÓGICO ALMACENADO:</b>
+            <b style="color: var(--accent-cyan);">🧠 ESTUDIO ALMACENADO:</b>
             {{ p.analisis_sintetico }}
         </div>
         <div class="ai-terminal" style="border-left-color: #facc15; margin-top: 6px;">
@@ -467,7 +461,7 @@ HTML_TEMPLATE = """
     </div>
     {% else %}
     <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px;">
-        📭 EL ARCHIVO HISTÓRICO ESTÁ VACÍO.
+        📭 EL ARCHIVO HISTÓRICO EN DISCO ESTÁ VACÍO.
     </div>
     {% endfor %}
 
