@@ -5,13 +5,12 @@ from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, session
 
 app = Flask(__name__)
-app.secret_key = "sotelok_final_fix_2026"
+app.secret_key = "sotelok_debug_2026"
 
-# Base de datos local directa para evitar bloqueos de rutas en Render
 DB_NAME = "sotelok_final.db"
 
 def inicializar_base_datos():
-    """Inicializa la base de datos de manera limpia y directa."""
+    """Inicializa la base de datos de manera segura y controlada."""
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
@@ -35,7 +34,7 @@ def inicializar_base_datos():
                 cuota_custom REAL DEFAULT 1.90,
                 fecha TEXT,
                 hora TEXT,
-                estado TEXT DEFAULT 'TRINITY OPERATIVO',
+                estado TEXT DEFAULT 'TRINITY DEBUG',
                 analisis_sintetico TEXT,
                 dictamen_ia TEXT,
                 stat1_label TEXT, stat1_val TEXT,
@@ -85,10 +84,10 @@ def inicializar_base_datos():
             
         conn.close()
     except Exception as e:
-        print(f"ERROR CRÍTICO AL INICIALIZAR BD: {e}")
+        print(f"🚨 EXCEPCIÓN EN INICIALIZAR_BASE_DATOS: {e}")
 
-def motor_trinity_final(deporte, local, visitante, cuota_usuario, tipo_liga, racha_manual_l="", racha_manual_v=""):
-    """MOTOR TRINITY FINAL (v20.4)."""
+def motor_trinity_debug(deporte, local, visitante, cuota_usuario, tipo_liga, racha_manual_l="", racha_manual_v=""):
+    """MOTOR TRINITY DEBUG (v20.5)."""
     l_clean = local.strip()
     v_clean = visitante.strip()
 
@@ -168,7 +167,7 @@ def motor_trinity_final(deporte, local, visitante, cuota_usuario, tipo_liga, rac
 
     analisis_sintetico = (
         f"• Deporte Analizado: {deporte} [{tipo_liga}]\n"
-        f"• Motor Trinity Final: Procesamiento con rachas verificadas ({racha_l} vs {racha_v}).\n"
+        f"• Motor Trinity Debug: Procesamiento con rachas verificadas ({racha_l} vs {racha_v}).\n"
         f"• IA 1 (Cuantitativa): Modelado estocástico optimizado.\n"
         f"• IA 2 (Contextual): Evaluación de ritmo y eficiencia específica.\n"
         f"• IA 3 (Ciber-Auditor de Riesgo): Validación de protección de bankroll.\n\n"
@@ -177,7 +176,7 @@ def motor_trinity_final(deporte, local, visitante, cuota_usuario, tipo_liga, rac
         f"2️⃣ {opcion_2}"
     )
 
-    dictamen_ia = f"Pick Trinity Final: {pick_final} | Certeza: {certeza}% | Cuota: {cuota_usuario} | EV: +{max(1.8, ev_calc)}%"
+    dictamen_ia = f"Pick Trinity Debug: {pick_final} | Certeza: {certeza}% | Cuota: {cuota_usuario} | EV: +{max(1.8, ev_calc)}%"
 
     return (analisis_sintetico, dictamen_ia, pick_final, certeza, ev_calc,
             stat1_l, stat1_v, stat2_l, stat2_v, stat3_l, stat3_v, stat4_l, stat4_v, racha_l, racha_v)
@@ -244,31 +243,25 @@ def home():
     except:
         fecha_str = datetime.now().strftime("%d/%m/%Y")
 
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM partidos WHERE fecha = ? ORDER BY id DESC', (fecha_str,))
-        partidos = cursor.fetchall()
-        
-        cursor.execute('SELECT * FROM bankroll WHERE id = 1')
-        bankroll = dict(cursor.fetchone())
-        cap_i = bankroll['capital_inicial']
-        cap_a = bankroll['capital_actual']
-        t_apo = bankroll['total_apostado']
-        t_gan = bankroll['total_ganado']
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM partidos WHERE fecha = ? ORDER BY id DESC', (fecha_str,))
+    partidos = cursor.fetchall()
+    
+    cursor.execute('SELECT * FROM bankroll WHERE id = 1')
+    bankroll = dict(cursor.fetchone())
+    cap_i = bankroll['capital_inicial']
+    cap_a = bankroll['capital_actual']
+    t_apo = bankroll['total_apostado']
+    t_gan = bankroll['total_ganado']
 
-        roi = round(((cap_a - cap_i) / cap_i) * 100, 2) if cap_i > 0 else 0.0
-        yield_pct = round(((t_gan - t_apo) / t_apo) * 100, 2) if t_apo > 0 else 0.0
-        
-        cursor.execute('SELECT COUNT(*) FROM partidos')
-        total_partidos_disco = cursor.fetchone()[0]
-        conn.close()
-    except Exception as e:
-        print(f"Error en home: {e}")
-        partidos = []
-        bankroll = {"capital_inicial": 1000.0, "capital_actual": 1000.0, "total_apostado": 0.0, "total_ganado": 0.0}
-        roi, yield_pct, total_partidos_disco = 0.0, 0.0, 0
+    roi = round(((cap_a - cap_i) / cap_i) * 100, 2) if cap_i > 0 else 0.0
+    yield_pct = round(((t_gan - t_apo) / t_apo) * 100, 2) if t_apo > 0 else 0.0
+    
+    cursor.execute('SELECT COUNT(*) FROM partidos')
+    total_partidos_disco = cursor.fetchone()[0]
+    conn.close()
 
     analisis_final = []
     for p in partidos:
@@ -296,15 +289,12 @@ def archivo():
     if 'user_id' not in session:
         return redirect(url_for('login'))
     inicializar_base_datos()
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM partidos ORDER BY id DESC')
-        todos_partidos = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-    except:
-        todos_partidos = []
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM partidos ORDER BY id DESC')
+    todos_partidos = [dict(row) for row in cursor.fetchall()]
+    conn.close()
     return render_template_string(HTML_TEMPLATE, todos_partidos=todos_partidos, seccion="archivo", user_email=session.get('email'), user_plan=session.get('plan'))
 
 @app.route('/inyectar', methods=['POST'])
@@ -312,46 +302,43 @@ def inyectar():
     if 'user_id' not in session:
         return redirect(url_for('login'))
         
+    deporte = request.form.get('deporte', 'Fútbol').strip()
+    tipo_liga = request.form.get('tipo_liga', 'Liga Principal').strip()
+    local = request.form.get('local', '').strip()
+    visitante = request.form.get('visitante', '').strip()
+    cuota = float(request.form.get('cuota_custom', 1.90) or 1.90)
+    
+    racha_manual_l = request.form.get('racha_manual_l', '').strip()
+    racha_manual_v = request.form.get('racha_manual_v', '').strip()
+    
+    fecha_iso = request.form.get('fecha', datetime.now().strftime("%Y-%m-%d"))
+    
     try:
-        deporte = request.form.get('deporte', 'Fútbol').strip()
-        tipo_liga = request.form.get('tipo_liga', 'Liga Principal').strip()
-        local = request.form.get('local', '').strip()
-        visitante = request.form.get('visitante', '').strip()
-        cuota = float(request.form.get('cuota_custom', 1.90) or 1.90)
-        
-        racha_manual_l = request.form.get('racha_manual_l', '').strip()
-        racha_manual_v = request.form.get('racha_manual_v', '').strip()
-        
-        fecha_iso = request.form.get('fecha', datetime.now().strftime("%Y-%m-%d"))
-        
-        try:
-            fecha_str = datetime.strptime(fecha_iso, "%Y-%m-%d").strftime("%d/%m/%Y")
-        except:
-            fecha_str = datetime.now().strftime("%d/%m/%Y")
+        fecha_str = datetime.strptime(fecha_iso, "%Y-%m-%d").strftime("%d/%m/%Y")
+    except:
+        fecha_str = datetime.now().strftime("%d/%m/%Y")
 
-        if local and visitante:
-            (s_an, d_ia, pick, conf, ev, st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v) = motor_trinity_final(
-                deporte, local, visitante, cuota, tipo_liga, racha_manual_l, racha_manual_v
-            )
-            
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute('''
-                INSERT INTO partidos (deporte, tipo_liga, local, visitante, cuota_custom, fecha, hora, estado, analisis_sintetico, dictamen_ia,
-                                      stat1_label, stat1_val, stat2_label, stat2_val, stat3_label, stat3_val, stat4_label, stat4_val, racha_l, racha_v)
-                VALUES (?, ?, ?, ?, ?, ?, ?, '⚡ FINAL VERIFICADO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (deporte, tipo_liga, local, visitante, cuota, fecha_str, datetime.now().strftime("%H:%M"), s_an, d_ia,
-                  st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v))
-            partido_id = cursor.lastrowid
-            
-            cursor.execute('''
-                INSERT INTO historial_ia (partido_id, pick, categoria, cuota_proyectada, probabilidad, ev, stake, resultado, fecha_registro)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (partido_id, pick, f"{deporte} [{tipo_liga}]", cuota, f"{conf}%", f"+{ev}%", "2.0%", "GUARDADO EN DISCO", datetime.now().strftime("%d/%m/%Y %H:%M")))
-            conn.commit()
-            conn.close()
-    except Exception as e:
-        print(f"Error al inyectar: {e}")
+    if local and visitante:
+        (s_an, d_ia, pick, conf, ev, st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v) = motor_trinity_debug(
+            deporte, local, visitante, cuota, tipo_liga, racha_manual_l, racha_manual_v
+        )
+        
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO partidos (deporte, tipo_liga, local, visitante, cuota_custom, fecha, hora, estado, analisis_sintetico, dictamen_ia,
+                                  stat1_label, stat1_val, stat2_label, stat2_val, stat3_label, stat3_val, stat4_label, stat4_val, racha_l, racha_v)
+            VALUES (?, ?, ?, ?, ?, ?, ?, '⚡ DEBUG VERIFICADO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (deporte, tipo_liga, local, visitante, cuota, fecha_str, datetime.now().strftime("%H:%M"), s_an, d_ia,
+              st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v))
+        partido_id = cursor.lastrowid
+        
+        cursor.execute('''
+            INSERT INTO historial_ia (partido_id, pick, categoria, cuota_proyectada, probabilidad, ev, stake, resultado, fecha_registro)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (partido_id, pick, f"{deporte} [{tipo_liga}]", cuota, f"{conf}%", f"+{ev}%", "2.0%", "GUARDADO EN DISCO", datetime.now().strftime("%d/%m/%Y %H:%M")))
+        conn.commit()
+        conn.close()
 
     return redirect(url_for('home', fecha=fecha_iso))
 
@@ -359,66 +346,58 @@ def inyectar():
 def liquidar(partidoid, estado):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        cursor = conn.cursor()
-        cursor.execute('SELECT * FROM partidos WHERE id = ?', (partidoid,))
-        p = cursor.fetchone()
-        if p:
-            cuota = p[5]
-            cursor.execute('SELECT * FROM bankroll WHERE id = 1')
-            b = cursor.fetchone()
-            cap_a, t_apo, t_gan = b[2], b[3], b[4]
-            monto = cap_a * 0.01
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM partidos WHERE id = ?', (partidoid,))
+    p = cursor.fetchone()
+    if p:
+        cuota = p[5]
+        cursor.execute('SELECT * FROM bankroll WHERE id = 1')
+        b = cursor.fetchone()
+        cap_a, t_apo, t_gan = b[2], b[3], b[4]
+        monto = cap_a * 0.01
 
-            if estado == 'acertado':
-                ganancia = monto * cuota
-                cap_a += (ganancia - monto)
-                t_gan += ganancia
-                res_str = '✅ ACERTADO (FINAL)'
-            else:
-                cap_a -= monto
-                res_str = '❌ FALLADO (FINAL)'
+        if estado == 'acertado':
+            ganancia = monto * cuota
+            cap_a += (ganancia - monto)
+            t_gan += ganancia
+            res_str = '✅ ACERTADO (DEBUG)'
+        else:
+            cap_a -= monto
+            res_str = '❌ FALLADO (DEBUG)'
 
-            cursor.execute('UPDATE bankroll SET capital_actual = ?, total_apostado = ?, total_ganado = ? WHERE id = 1', (round(cap_a, 2), round(t_apo + monto, 2), round(t_gan, 2)))
-            cursor.execute('UPDATE partidos SET estado = ? WHERE id = ?', (res_str, partidoid))
-            cursor.execute('UPDATE historial_ia SET resultado = ? WHERE partido_id = ?', (res_str, partidoid))
-            conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"Error liquidando: {e}")
+        cursor.execute('UPDATE bankroll SET capital_actual = ?, total_apostado = ?, total_ganado = ? WHERE id = 1', (round(cap_a, 2), round(t_apo + monto, 2), round(t_gan, 2)))
+        cursor.execute('UPDATE partidos SET estado = ? WHERE id = ?', (res_str, partidoid))
+        cursor.execute('UPDATE historial_ia SET resultado = ? WHERE partido_id = ?', (res_str, partidoid))
+        conn.commit()
+    conn.close()
     return redirect(url_for('home'))
 
 @app.route('/rendimiento')
 def rendimiento():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    try:
-        conn = sqlite3.connect(DB_NAME)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute('SELECT h.*, p.local, p.visitante, p.cuota_custom FROM historial_ia h JOIN partidos p ON h.partido_id = p.id ORDER BY h.id DESC')
-        historial = [dict(row) for row in cursor.fetchall()]
-        
-        cursor.execute('SELECT * FROM bankroll WHERE id = 1')
-        bankroll = dict(cursor.fetchone())
-        cap_i, cap_a, t_apo, t_gan = bankroll['capital_inicial'], bankroll['capital_actual'], bankroll['total_apostado'], bankroll['total_ganado']
+    conn = sqlite3.connect(DB_NAME)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('SELECT h.*, p.local, p.visitante, p.cuota_custom FROM historial_ia h JOIN partidos p ON h.partido_id = p.id ORDER BY h.id DESC')
+    historial = [dict(row) for row in cursor.fetchall()]
+    
+    cursor.execute('SELECT * FROM bankroll WHERE id = 1')
+    bankroll = dict(cursor.fetchone())
+    cap_i, cap_a, t_apo, t_gan = bankroll['capital_inicial'], bankroll['capital_actual'], bankroll['total_apostado'], bankroll['total_ganado']
 
-        roi = round(((cap_a - cap_i) / cap_i) * 100, 2) if cap_i > 0 else 0.0
-        yield_pct = round(((t_gan - t_apo) / t_apo) * 100, 2) if t_apo > 0 else 0.0
-        total_apuestas = len(historial)
-        win_rate = round((sum(1 for h in historial if 'ACERTADO' in h['resultado']) / total_apuestas) * 100, 1) if total_apuestas > 0 else 0.0
-        conn.close()
-    except:
-        historial = []
-        bankroll = {"capital_inicial": 1000.0, "capital_actual": 1000.0, "total_apostado": 0.0, "total_ganado": 0.0}
-        roi, yield_pct, total_apuestas, win_rate = 0.0, 0.0, 0, 0.0
+    roi = round(((cap_a - cap_i) / cap_i) * 100, 2) if cap_i > 0 else 0.0
+    yield_pct = round(((t_gan - t_apo) / t_apo) * 100, 2) if t_apo > 0 else 0.0
+    total_apuestas = len(historial)
+    win_rate = round((sum(1 for h in historial if 'ACERTADO' in h['resultado']) / total_apuestas) * 100, 1) if total_apuestas > 0 else 0.0
+    conn.close()
 
     return render_template_string(HTML_TEMPLATE, resultados=[], fecha_seleccionada="", historial=historial, bankroll=bankroll, roi=roi, yield_pct=yield_pct, win_rate=win_rate, total_apuestas=total_apuestas, seccion="rendimiento", user_email=session.get('email'), user_plan=session.get('plan'))
 
 @app.route('/manifest.json')
 def manifest():
-    return app.response_class('{"name": "SOTELOK Final Desk", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
+    return app.response_class('{"name": "SOTELOK Debug Desk", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
 
 @app.route('/sw.js')
 def sw():
@@ -472,7 +451,7 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>SOTELOK QUANT - Final v20.4</title>
+    <title>SOTELOK QUANT - Debug v20.5</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --bg-terminal: #07090e; --card-bg: #111827; --border-color: #1f2937; --accent-cyan: #00f2fe; --accent-green: #10b981; --text-main: #f9fafb; --text-muted: #9ca3af; }
@@ -513,7 +492,7 @@ HTML_TEMPLATE = """
     </style>
     <script>
         function copiarTexto(texto) {
-            navigator.clipboard.writeText(texto).then(() => { alert("Análisis final copiado al portapapeles."); });
+            navigator.clipboard.writeText(texto).then(() => { alert("Análisis debug copiado al portapapeles."); });
         }
         function toggleStats(id) {
             var p = document.getElementById(id);
@@ -523,7 +502,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // FINAL v20.4</div>
+        <div class="logo">⚡ SOTELOK // DEBUG v20.5</div>
         <div><span class="status-dot"></span> <span style="font-size:9px; color:var(--text-muted);">{{ user_email }}</span></div>
     </div>
 
@@ -534,7 +513,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="nav-bar">
-        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar Final</a>
+        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar Debug</a>
         <a href="/archivo" class="nav-btn {% if seccion == 'archivo' %}active{% endif %}">📂 Archivo</a>
         <a href="/rendimiento" class="nav-btn {% if seccion == 'rendimiento' %}active{% endif %}">📉 Historial</a>
         <a href="/logout" class="nav-btn" style="background:#7f1d1d; color:#fca5a5;">🚪 Salir</a>
@@ -549,7 +528,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;">⚡ Inyección Final (Carga Manual de Rachas Reales)</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;">⚡ Inyección Debug (Modo de Diagnóstico Activo)</div>
         <form method="POST" action="/inyectar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
             <label>Seleccionar Deporte</label>
@@ -581,7 +560,7 @@ HTML_TEMPLATE = """
 
             <label>Cuota del Bookmaker</label>
             <input type="number" step="0.01" name="cuota_custom" value="1.90">
-            <button type="submit" class="btn-exec">Activar Análisis Trinity Final</button>
+            <button type="submit" class="btn-exec">Activar Análisis Trinity Debug</button>
         </form>
     </div>
 
@@ -633,12 +612,12 @@ HTML_TEMPLATE = """
         </div>
 
         <div id="ia-{{ item.id }}" class="stats-panel" style="border-color: #facc15; background: #07090e;">
-            <b style="color: #facc15;">🧠 FILOSOFÍA FINAL:</b><br>
+            <b style="color: #facc15;">🧠 FILOSOFÍA DEBUG:</b><br>
             Las 3 IAs procesan los datos reales suministrados para blindar las operaciones con opciones de máxima protección.
         </div>
         
         <div class="ai-terminal">
-            <b style="color: var(--accent-cyan);">🤖 DEBATE DE LAS TRES IA (ANÁLISIS FINAL):</b>
+            <b style="color: var(--accent-cyan);">🤖 DEBATE DE LAS TRES IA (ANÁLISIS DEBUG):</b>
             {{ item.analisis_sintetico }}
         </div>
 
@@ -655,12 +634,12 @@ HTML_TEMPLATE = """
     </div>
     {% else %}
     <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
-        📭 TERMINAL FINAL LISTA. Inyecta un evento e ingresa las rachas reales para iniciar el debate de las 3 IAs sin errores de servidor.
+        📭 TERMINAL DEBUG LISTA. Inyecta un evento e ingresa las rachas reales para iniciar el debate de las 3 IAs.
     </div>
     {% endfor %}
 
     {% elif seccion == 'archivo' %}
-    <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📂 ARCHIVO HISTÓRICO FINAL</div>
+    <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📂 ARCHIVO HISTÓRICO DEBUG</div>
     
     {% for p in todos_partidos %}
     <div class="card" style="border-left-color: var(--accent-cyan);">
@@ -715,4 +694,4 @@ HTML_TEMPLATE = """
 """
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=True)
