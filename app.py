@@ -5,22 +5,17 @@ from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, session
 
 app = Flask(__name__)
-app.secret_key = "sotelok_bulletproof_2026"
+app.secret_key = "sotelok_final_fix_2026"
 
-# Configuración estricta de almacenamiento persistente en el disco de Render
-DATA_DIR = os.environ.get("RENDER_DISK_PATH", "/tmp/sotelok_data")
-if not os.path.exists(DATA_DIR):
-    os.makedirs(DATA_DIR, exist_ok=True)
-
-DB_NAME = os.path.join(DATA_DIR, "sotelok_bulletproof.db")
+# Base de datos local directa para evitar bloqueos de rutas en Render
+DB_NAME = "sotelok_final.db"
 
 def inicializar_base_datos():
-    """Inicializa la base de datos de manera blindada. Si hay corrupción, la reinicia limpiamente."""
+    """Inicializa la base de datos de manera limpia y directa."""
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
         
-        # Verificar integridad de tablas esenciales
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS usuarios (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,7 +35,7 @@ def inicializar_base_datos():
                 cuota_custom REAL DEFAULT 1.90,
                 fecha TEXT,
                 hora TEXT,
-                estado TEXT DEFAULT 'TRINITY BLINDADO',
+                estado TEXT DEFAULT 'TRINITY OPERATIVO',
                 analisis_sintetico TEXT,
                 dictamen_ia TEXT,
                 stat1_label TEXT, stat1_val TEXT,
@@ -77,14 +72,12 @@ def inicializar_base_datos():
         ''')
         conn.commit()
 
-        # Asegurar usuario admin por defecto
         cursor.execute('SELECT COUNT(*) FROM usuarios')
         if cursor.fetchone()[0] == 0:
             cursor.execute("INSERT INTO usuarios (email, password, plan, fecha_registro) VALUES (?, ?, ?, ?)", 
                            ("admin@sotelok.com", "sotelok2026", "VIP", datetime.now().strftime("%d/%m/%Y")))
             conn.commit()
 
-        # Asegurar bankroll inicial por defecto
         cursor.execute('SELECT COUNT(*) FROM bankroll')
         if cursor.fetchone()[0] == 0:
             cursor.execute('INSERT INTO bankroll (capital_inicial, capital_actual, total_apostado, total_ganado) VALUES (1000.0, 1000.0, 0.0, 0.0)')
@@ -92,27 +85,10 @@ def inicializar_base_datos():
             
         conn.close()
     except Exception as e:
-        print(f"⚠️ Alerta de Base de Datos: {e}. Reconstruyendo entorno limpio...")
-        try:
-            # Si el archivo de BD en disco está dañado, lo purgamos para evitar el Error 500 permanente
-            if os.path.exists(DB_NAME):
-                os.remove(DB_NAME)
-            # Reintentar inicialización limpia
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute('CREATE TABLE usuarios (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT UNIQUE, password TEXT, plan TEXT, fecha_registro TEXT)')
-            cursor.execute('CREATE TABLE partidos (id INTEGER PRIMARY KEY AUTOINCREMENT, deporte TEXT, tipo_liga TEXT, local TEXT, visitante TEXT, cuota_custom REAL, fecha TEXT, hora TEXT, estado TEXT, analisis_sintetico TEXT, dictamen_ia TEXT, stat1_label TEXT, stat1_val TEXT, stat2_label TEXT, stat2_val TEXT, stat3_label TEXT, stat3_val TEXT, stat4_label TEXT, stat4_val TEXT, racha_l TEXT, racha_v TEXT)')
-            cursor.execute('CREATE TABLE bankroll (id INTEGER PRIMARY KEY AUTOINCREMENT, capital_inicial REAL, capital_actual REAL, total_apostado REAL, total_ganado REAL)')
-            cursor.execute('CREATE TABLE historial_ia (id INTEGER PRIMARY KEY AUTOINCREMENT, partido_id INTEGER, pick TEXT, categoria TEXT, cuota_proyectada REAL, probabilidad TEXT, ev TEXT, stake TEXT, resultado TEXT, fecha_registro TEXT)')
-            cursor.execute("INSERT INTO usuarios (email, password, plan, fecha_registro) VALUES ('admin@sotelok.com', 'sotelok2026', 'VIP', ?)", (datetime.now().strftime("%d/%m/%Y"),))
-            cursor.execute('INSERT INTO bankroll (capital_inicial, capital_actual, total_apostado, total_ganado) VALUES (1000.0, 1000.0, 0.0, 0.0)')
-            conn.commit()
-            conn.close()
-        except Exception as ex2:
-            print(f"Error crítico irreecuperable: {ex2}")
+        print(f"ERROR CRÍTICO AL INICIALIZAR BD: {e}")
 
-def motor_trinity_blindado(deporte, local, visitante, cuota_usuario, tipo_liga, racha_manual_l="", racha_manual_v=""):
-    """MOTOR BLINDADO TRINITY (v20.3): Cero opciones de fallo."""
+def motor_trinity_final(deporte, local, visitante, cuota_usuario, tipo_liga, racha_manual_l="", racha_manual_v=""):
+    """MOTOR TRINITY FINAL (v20.4)."""
     l_clean = local.strip()
     v_clean = visitante.strip()
 
@@ -192,7 +168,7 @@ def motor_trinity_blindado(deporte, local, visitante, cuota_usuario, tipo_liga, 
 
     analisis_sintetico = (
         f"• Deporte Analizado: {deporte} [{tipo_liga}]\n"
-        f"• Motor Blindado Trinity: Procesamiento con base en rachas verificadas ({racha_l} vs {racha_v}).\n"
+        f"• Motor Trinity Final: Procesamiento con rachas verificadas ({racha_l} vs {racha_v}).\n"
         f"• IA 1 (Cuantitativa): Modelado estocástico optimizado.\n"
         f"• IA 2 (Contextual): Evaluación de ritmo y eficiencia específica.\n"
         f"• IA 3 (Ciber-Auditor de Riesgo): Validación de protección de bankroll.\n\n"
@@ -201,7 +177,7 @@ def motor_trinity_blindado(deporte, local, visitante, cuota_usuario, tipo_liga, 
         f"2️⃣ {opcion_2}"
     )
 
-    dictamen_ia = f"Pick Trinity Blindado: {pick_final} | Certeza: {certeza}% | Cuota: {cuota_usuario} | EV: +{max(1.8, ev_calc)}%"
+    dictamen_ia = f"Pick Trinity Final: {pick_final} | Certeza: {certeza}% | Cuota: {cuota_usuario} | EV: +{max(1.8, ev_calc)}%"
 
     return (analisis_sintetico, dictamen_ia, pick_final, certeza, ev_calc,
             stat1_l, stat1_v, stat2_l, stat2_v, stat3_l, stat3_v, stat4_l, stat4_v, racha_l, racha_v)
@@ -289,6 +265,7 @@ def home():
         total_partidos_disco = cursor.fetchone()[0]
         conn.close()
     except Exception as e:
+        print(f"Error en home: {e}")
         partidos = []
         bankroll = {"capital_inicial": 1000.0, "capital_actual": 1000.0, "total_apostado": 0.0, "total_ganado": 0.0}
         roi, yield_pct, total_partidos_disco = 0.0, 0.0, 0
@@ -353,7 +330,7 @@ def inyectar():
             fecha_str = datetime.now().strftime("%d/%m/%Y")
 
         if local and visitante:
-            (s_an, d_ia, pick, conf, ev, st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v) = motor_trinity_blindado(
+            (s_an, d_ia, pick, conf, ev, st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v) = motor_trinity_final(
                 deporte, local, visitante, cuota, tipo_liga, racha_manual_l, racha_manual_v
             )
             
@@ -362,7 +339,7 @@ def inyectar():
             cursor.execute('''
                 INSERT INTO partidos (deporte, tipo_liga, local, visitante, cuota_custom, fecha, hora, estado, analisis_sintetico, dictamen_ia,
                                       stat1_label, stat1_val, stat2_label, stat2_val, stat3_label, stat3_val, stat4_label, stat4_val, racha_l, racha_v)
-                VALUES (?, ?, ?, ?, ?, ?, ?, '⚡ BLINDADO VERIFICADO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, '⚡ FINAL VERIFICADO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (deporte, tipo_liga, local, visitante, cuota, fecha_str, datetime.now().strftime("%H:%M"), s_an, d_ia,
                   st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v))
             partido_id = cursor.lastrowid
@@ -398,10 +375,10 @@ def liquidar(partidoid, estado):
                 ganancia = monto * cuota
                 cap_a += (ganancia - monto)
                 t_gan += ganancia
-                res_str = '✅ ACERTADO (BLINDADO)'
+                res_str = '✅ ACERTADO (FINAL)'
             else:
                 cap_a -= monto
-                res_str = '❌ FALLADO (BLINDADO)'
+                res_str = '❌ FALLADO (FINAL)'
 
             cursor.execute('UPDATE bankroll SET capital_actual = ?, total_apostado = ?, total_ganado = ? WHERE id = 1', (round(cap_a, 2), round(t_apo + monto, 2), round(t_gan, 2)))
             cursor.execute('UPDATE partidos SET estado = ? WHERE id = ?', (res_str, partidoid))
@@ -441,7 +418,7 @@ def rendimiento():
 
 @app.route('/manifest.json')
 def manifest():
-    return app.response_class('{"name": "SOTELOK Bulletproof Desk", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
+    return app.response_class('{"name": "SOTELOK Final Desk", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
 
 @app.route('/sw.js')
 def sw():
@@ -495,7 +472,7 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>SOTELOK QUANT - Blindado v20.3</title>
+    <title>SOTELOK QUANT - Final v20.4</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --bg-terminal: #07090e; --card-bg: #111827; --border-color: #1f2937; --accent-cyan: #00f2fe; --accent-green: #10b981; --text-main: #f9fafb; --text-muted: #9ca3af; }
@@ -536,7 +513,7 @@ HTML_TEMPLATE = """
     </style>
     <script>
         function copiarTexto(texto) {
-            navigator.clipboard.writeText(texto).then(() => { alert("Análisis blindado copiado al portapapeles."); });
+            navigator.clipboard.writeText(texto).then(() => { alert("Análisis final copiado al portapapeles."); });
         }
         function toggleStats(id) {
             var p = document.getElementById(id);
@@ -546,7 +523,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // BLINDADO v20.3</div>
+        <div class="logo">⚡ SOTELOK // FINAL v20.4</div>
         <div><span class="status-dot"></span> <span style="font-size:9px; color:var(--text-muted);">{{ user_email }}</span></div>
     </div>
 
@@ -557,7 +534,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="nav-bar">
-        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar Blindado</a>
+        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar Final</a>
         <a href="/archivo" class="nav-btn {% if seccion == 'archivo' %}active{% endif %}">📂 Archivo</a>
         <a href="/rendimiento" class="nav-btn {% if seccion == 'rendimiento' %}active{% endif %}">📉 Historial</a>
         <a href="/logout" class="nav-btn" style="background:#7f1d1d; color:#fca5a5;">🚪 Salir</a>
@@ -572,7 +549,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;">⚡ Inyección Blindada (Reinicio Limpio Automático)</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;">⚡ Inyección Final (Carga Manual de Rachas Reales)</div>
         <form method="POST" action="/inyectar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
             <label>Seleccionar Deporte</label>
@@ -604,7 +581,7 @@ HTML_TEMPLATE = """
 
             <label>Cuota del Bookmaker</label>
             <input type="number" step="0.01" name="cuota_custom" value="1.90">
-            <button type="submit" class="btn-exec">Activar Análisis Blindado Trinity</button>
+            <button type="submit" class="btn-exec">Activar Análisis Trinity Final</button>
         </form>
     </div>
 
@@ -656,12 +633,12 @@ HTML_TEMPLATE = """
         </div>
 
         <div id="ia-{{ item.id }}" class="stats-panel" style="border-color: #facc15; background: #07090e;">
-            <b style="color: #facc15;">🧠 FILOSOFÍA BLINDADA:</b><br>
+            <b style="color: #facc15;">🧠 FILOSOFÍA FINAL:</b><br>
             Las 3 IAs procesan los datos reales suministrados para blindar las operaciones con opciones de máxima protección.
         </div>
         
         <div class="ai-terminal">
-            <b style="color: var(--accent-cyan);">🤖 DEBATE DE LAS TRES IA (ANÁLISIS BLINDADO):</b>
+            <b style="color: var(--accent-cyan);">🤖 DEBATE DE LAS TRES IA (ANÁLISIS FINAL):</b>
             {{ item.analisis_sintetico }}
         </div>
 
@@ -678,12 +655,12 @@ HTML_TEMPLATE = """
     </div>
     {% else %}
     <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
-        📭 TERMINAL BLINDADA LISTA. Inyecta un evento e ingresa las rachas reales para iniciar el debate de las 3 IAs sin errores de servidor.
+        📭 TERMINAL FINAL LISTA. Inyecta un evento e ingresa las rachas reales para iniciar el debate de las 3 IAs sin errores de servidor.
     </div>
     {% endfor %}
 
     {% elif seccion == 'archivo' %}
-    <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📂 ARCHIVO HISTÓRICO BLINDADO</div>
+    <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📂 ARCHIVO HISTÓRICO FINAL</div>
     
     {% for p in todos_partidos %}
     <div class="card" style="border-left-color: var(--accent-cyan);">
@@ -717,7 +694,7 @@ HTML_TEMPLATE = """
     </div>
 
     {% for h in historial %}
-    <div class="card" style="border-left-color: {% if 'ACERTADO' in h.resultado %}var(--accent-green){% elif 'FALLADO' in h.resultado %}#ef4444{% else %}var(--accent-cyan){% endif %};">
+    <div class="card" style="border-left-color: {% if 'ACERTADO' in h.resultado %}var(--accent-green){% elif 'FALLADO' in h.resultado %}#ef4444{% else %}var(--accent-cyan);% endif %};">
         <div class="tag-row">
             <span>📅 {{ h.fecha_registro }} | Categoria: {{ h.categoria }}</span>
             <span>Estado: <b style="color: {% if 'ACERTADO' in h.resultado %}var(--accent-green){% elif 'FALLADO' in h.resultado %}#ef4444{% else %}var(--accent-cyan);% endif %};">{{ h.resultado }}</b></span>
