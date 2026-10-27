@@ -5,12 +5,12 @@ from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, session
 
 app = Flask(__name__)
-app.secret_key = "sotelok_debug_2026"
+app.secret_key = "sotelok_syntax_fix_2026"
 
 DB_NAME = "sotelok_final.db"
 
 def inicializar_base_datos():
-    """Inicializa la base de datos de manera segura y controlada."""
+    """Inicializa la base de datos de manera limpia y blindada."""
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
@@ -34,7 +34,7 @@ def inicializar_base_datos():
                 cuota_custom REAL DEFAULT 1.90,
                 fecha TEXT,
                 hora TEXT,
-                estado TEXT DEFAULT 'TRINITY DEBUG',
+                estado TEXT DEFAULT 'TRINITY OPERATIVO',
                 analisis_sintetico TEXT,
                 dictamen_ia TEXT,
                 stat1_label TEXT, stat1_val TEXT,
@@ -84,10 +84,10 @@ def inicializar_base_datos():
             
         conn.close()
     except Exception as e:
-        print(f"🚨 EXCEPCIÓN EN INICIALIZAR_BASE_DATOS: {e}")
+        print(f"Error BD: {e}")
 
-def motor_trinity_debug(deporte, local, visitante, cuota_usuario, tipo_liga, racha_manual_l="", racha_manual_v=""):
-    """MOTOR TRINITY DEBUG (v20.5)."""
+def motor_trinity_clean(deporte, local, visitante, cuota_usuario, tipo_liga, racha_manual_l="", racha_manual_v=""):
+    """MOTOR TRINITY CLEAN (v20.6)."""
     l_clean = local.strip()
     v_clean = visitante.strip()
 
@@ -167,7 +167,7 @@ def motor_trinity_debug(deporte, local, visitante, cuota_usuario, tipo_liga, rac
 
     analisis_sintetico = (
         f"• Deporte Analizado: {deporte} [{tipo_liga}]\n"
-        f"• Motor Trinity Debug: Procesamiento con rachas verificadas ({racha_l} vs {racha_v}).\n"
+        f"• Motor Trinity Clean: Procesamiento con rachas verificadas ({racha_l} vs {racha_v}).\n"
         f"• IA 1 (Cuantitativa): Modelado estocástico optimizado.\n"
         f"• IA 2 (Contextual): Evaluación de ritmo y eficiencia específica.\n"
         f"• IA 3 (Ciber-Auditor de Riesgo): Validación de protección de bankroll.\n\n"
@@ -176,7 +176,7 @@ def motor_trinity_debug(deporte, local, visitante, cuota_usuario, tipo_liga, rac
         f"2️⃣ {opcion_2}"
     )
 
-    dictamen_ia = f"Pick Trinity Debug: {pick_final} | Certeza: {certeza}% | Cuota: {cuota_usuario} | EV: +{max(1.8, ev_calc)}%"
+    dictamen_ia = f"Pick Trinity Clean: {pick_final} | Certeza: {certeza}% | Cuota: {cuota_usuario} | EV: +{max(1.8, ev_calc)}%"
 
     return (analisis_sintetico, dictamen_ia, pick_final, certeza, ev_calc,
             stat1_l, stat1_v, stat2_l, stat2_v, stat3_l, stat3_v, stat4_l, stat4_v, racha_l, racha_v)
@@ -319,7 +319,7 @@ def inyectar():
         fecha_str = datetime.now().strftime("%d/%m/%Y")
 
     if local and visitante:
-        (s_an, d_ia, pick, conf, ev, st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v) = motor_trinity_debug(
+        (s_an, d_ia, pick, conf, ev, st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v) = motor_trinity_clean(
             deporte, local, visitante, cuota, tipo_liga, racha_manual_l, racha_manual_v
         )
         
@@ -328,7 +328,7 @@ def inyectar():
         cursor.execute('''
             INSERT INTO partidos (deporte, tipo_liga, local, visitante, cuota_custom, fecha, hora, estado, analisis_sintetico, dictamen_ia,
                                   stat1_label, stat1_val, stat2_label, stat2_val, stat3_label, stat3_val, stat4_label, stat4_val, racha_l, racha_v)
-            VALUES (?, ?, ?, ?, ?, ?, ?, '⚡ DEBUG VERIFICADO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, '⚡ CLEAN VERIFICADO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (deporte, tipo_liga, local, visitante, cuota, fecha_str, datetime.now().strftime("%H:%M"), s_an, d_ia,
               st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v))
         partido_id = cursor.lastrowid
@@ -361,10 +361,10 @@ def liquidar(partidoid, estado):
             ganancia = monto * cuota
             cap_a += (ganancia - monto)
             t_gan += ganancia
-            res_str = '✅ ACERTADO (DEBUG)'
+            res_str = '✅ ACERTADO (CLEAN)'
         else:
             cap_a -= monto
-            res_str = '❌ FALLADO (DEBUG)'
+            res_str = '❌ FALLADO (CLEAN)'
 
         cursor.execute('UPDATE bankroll SET capital_actual = ?, total_apostado = ?, total_ganado = ? WHERE id = 1', (round(cap_a, 2), round(t_apo + monto, 2), round(t_gan, 2)))
         cursor.execute('UPDATE partidos SET estado = ? WHERE id = ?', (res_str, partidoid))
@@ -397,7 +397,7 @@ def rendimiento():
 
 @app.route('/manifest.json')
 def manifest():
-    return app.response_class('{"name": "SOTELOK Debug Desk", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
+    return app.response_class('{"name": "SOTELOK Clean Desk", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
 
 @app.route('/sw.js')
 def sw():
@@ -426,7 +426,9 @@ AUTH_TEMPLATE = """
 <body>
     <div class="auth-card">
         <div class="logo">⚡ SOTELOK QUANT PORTAL</div>
-        {% if error %}<div class="error-msg">{{ error }}</div>{% endif %}
+        {% if error %}
+        <div class="error-msg">{{ error }}</div>
+        {% endif %}
         <form method="POST">
             <label>Correo Electrónico</label>
             <input type="email" name="email" placeholder="admin@sotelok.com" required>
@@ -451,7 +453,7 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>SOTELOK QUANT - Debug v20.5</title>
+    <title>SOTELOK QUANT - Clean v20.6</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --bg-terminal: #07090e; --card-bg: #111827; --border-color: #1f2937; --accent-cyan: #00f2fe; --accent-green: #10b981; --text-main: #f9fafb; --text-muted: #9ca3af; }
@@ -492,7 +494,7 @@ HTML_TEMPLATE = """
     </style>
     <script>
         function copiarTexto(texto) {
-            navigator.clipboard.writeText(texto).then(() => { alert("Análisis debug copiado al portapapeles."); });
+            navigator.clipboard.writeText(texto).then(() => { alert("Análisis limpio copiado al portapapeles."); });
         }
         function toggleStats(id) {
             var p = document.getElementById(id);
@@ -502,18 +504,30 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // DEBUG v20.5</div>
+        <div class="logo">⚡ SOTELOK // CLEAN v20.6</div>
         <div><span class="status-dot"></span> <span style="font-size:9px; color:var(--text-muted);">{{ user_email }}</span></div>
     </div>
 
     <div class="bankroll-banner">
         <div>Capital<br><span class="bankroll-val">${{ bankroll.capital_actual }}</span></div>
-        <div>Win Rate<br><span class="bankroll-val">{{ win_rate if win_rate is defined else '0.0' }}%</span></div>
-        <div>En Disco<br><span class="bankroll-val" style="color:var(--accent-cyan);">{{ total_partidos if total_partidos is defined else 0 }}</span></div>
+        <div>Win Rate<br><span class="bankroll-val">
+            {% if win_rate is defined %}
+                {{ win_rate }}%
+            {% else %}
+                0.0%
+            {% endif %}
+        </span></div>
+        <div>En Disco<br><span class="bankroll-val" style="color:var(--accent-cyan);">
+            {% if total_partidos is defined %}
+                {{ total_partidos }}
+            {% else %}
+                0
+            {% endif %}
+        </span></div>
     </div>
 
     <div class="nav-bar">
-        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar Debug</a>
+        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar Clean</a>
         <a href="/archivo" class="nav-btn {% if seccion == 'archivo' %}active{% endif %}">📂 Archivo</a>
         <a href="/rendimiento" class="nav-btn {% if seccion == 'rendimiento' %}active{% endif %}">📉 Historial</a>
         <a href="/logout" class="nav-btn" style="background:#7f1d1d; color:#fca5a5;">🚪 Salir</a>
@@ -528,7 +542,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;">⚡ Inyección Debug (Modo de Diagnóstico Activo)</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;">⚡ Inyección Clean (Sintaxis HTML Reparada)</div>
         <form method="POST" action="/inyectar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
             <label>Seleccionar Deporte</label>
@@ -560,108 +574,112 @@ HTML_TEMPLATE = """
 
             <label>Cuota del Bookmaker</label>
             <input type="number" step="0.01" name="cuota_custom" value="1.90">
-            <button type="submit" class="btn-exec">Activar Análisis Trinity Debug</button>
+            <button type="submit" class="btn-exec">Activar Análisis Trinity Clean</button>
         </form>
     </div>
 
-    {% for item in resultados %}
-    <div class="card">
-        <div class="tag-row">
-            <span>⚡ {{ item.deporte }} // {{ item.tipo_liga }}</span>
-            <span>⏰ {{ item.hora }} | <b>{{ item.estado }}</b></span>
-        </div>
-        <div class="match-title">⚔️ {{ item.partido }}</div>
+    {% if resultados %}
+        {% for item in resultados %}
+        <div class="card">
+            <div class="tag-row">
+                <span>⚡ {{ item.deporte }} // {{ item.tipo_liga }}</span>
+                <span>⏰ {{ item.hora }} | <b>{{ item.estado }}</b></span>
+            </div>
+            <div class="match-title">⚔️ {{ item.partido }}</div>
 
-        <div class="mando-grid">
-            <button class="btn-mando" onclick="toggleStats('racha-{{ item.id }}')">📊 [Racha Real]</button>
-            <button class="btn-mando" onclick="toggleStats('st1-{{ item.id }}')">🎯 [Métrica 1]</button>
-            <button class="btn-mando" onclick="toggleStats('st2-{{ item.id }}')">📈 [Métrica 2]</button>
-            <button class="btn-mando" onclick="toggleStats('st3-{{ item.id }}')">⚡ [Métrica 3]</button>
-            <button class="btn-mando" onclick="toggleStats('st4-{{ item.id }}')">🛡️ [Métrica 4]</button>
-            <button class="btn-mando" onclick="toggleStats('ia-{{ item.id }}')">🧠 [Trinity Audit]</button>
-        </div>
+            <div class="mando-grid">
+                <button class="btn-mando" onclick="toggleStats('racha-{{ item.id }}')">📊 [Racha Real]</button>
+                <button class="btn-mando" onclick="toggleStats('st1-{{ item.id }}')">🎯 [Métrica 1]</button>
+                <button class="btn-mando" onclick="toggleStats('st2-{{ item.id }}')">📈 [Métrica 2]</button>
+                <button class="btn-mando" onclick="toggleStats('st3-{{ item.id }}')">⚡ [Métrica 3]</button>
+                <button class="btn-mando" onclick="toggleStats('st4-{{ item.id }}')">🛡️ [Métrica 4]</button>
+                <button class="btn-mando" onclick="toggleStats('ia-{{ item.id }}')">🧠 [Trinity Audit]</button>
+            </div>
 
-        <div id="racha-{{ item.id }}" class="stats-panel">
-            <b>📊 HISTORIAL Y RACHA VERIFICADA:</b><br>
-            • <b>{{ item.local }}</b>: {{ item.stats.racha_l }}<br>
-            • <b>{{ item.visitante }}</b>: {{ item.stats.racha_v }}
-        </div>
+            <div id="racha-{{ item.id }}" class="stats-panel">
+                <b>📊 HISTORIAL Y RACHA VERIFICADA:</b><br>
+                • <b>{{ item.local }}</b>: {{ item.stats.racha_l }}<br>
+                • <b>{{ item.visitante }}</b>: {{ item.stats.racha_v }}
+            </div>
 
-        <div id="st1-{{ item.id }}" class="stats-panel">
-            <b>🎯 ESTADÍSTICA CLAVE 1:</b><br>
-            • {{ item.local }}: {{ item.stats.stat1_l }}<br>
-            • {{ item.visitante }}: {{ item.stats.stat1_v }}
-        </div>
+            <div id="st1-{{ item.id }}" class="stats-panel">
+                <b>🎯 ESTADÍSTICA CLAVE 1:</b><br>
+                • {{ item.local }}: {{ item.stats.stat1_l }}<br>
+                • {{ item.visitante }}: {{ item.stats.stat1_v }}
+            </div>
 
-        <div id="st2-{{ item.id }}" class="stats-panel">
-            <b>📈 ESTADÍSTICA CLAVE 2:</b><br>
-            • {{ item.local }}: {{ item.stats.stat2_l }}<br>
-            • {{ item.visitante }}: {{ item.stats.stat2_v }}
-        </div>
+            <div id="st2-{{ item.id }}" class="stats-panel">
+                <b>📈 ESTADÍSTICA CLAVE 2:</b><br>
+                • {{ item.local }}: {{ item.stats.stat2_l }}<br>
+                • {{ item.visitante }}: {{ item.stats.stat2_v }}
+            </div>
 
-        <div id="st3-{{ item.id }}" class="stats-panel">
-            <b>⚡ INDICADOR DE RENDIMIENTO:</b><br>
-            • {{ item.local }}: {{ item.stats.stat3_l }}<br>
-            • {{ item.visitante }}: {{ item.stats.stat3_v }}
-        </div>
+            <div id="st3-{{ item.id }}" class="stats-panel">
+                <b>⚡ INDICADOR DE RENDIMIENTO:</b><br>
+                • {{ item.local }}: {{ item.stats.stat3_l }}<br>
+                • {{ item.visitante }}: {{ item.stats.stat3_v }}
+            </div>
 
-        <div id="st4-{{ item.id }}" class="stats-panel">
-            <b>🛡️ INDICADOR DEFENSIVO / RIESGO:</b><br>
-            • {{ item.local }}: {{ item.stats.stat4_l }}<br>
-            • {{ item.visitante }}: {{ item.stats.stat4_v }}
-        </div>
+            <div id="st4-{{ item.id }}" class="stats-panel">
+                <b>🛡️ INDICADOR DEFENSIVO / RIESGO:</b><br>
+                • {{ item.local }}: {{ item.stats.stat4_l }}<br>
+                • {{ item.visitante }}: {{ item.stats.stat4_v }}
+            </div>
 
-        <div id="ia-{{ item.id }}" class="stats-panel" style="border-color: #facc15; background: #07090e;">
-            <b style="color: #facc15;">🧠 FILOSOFÍA DEBUG:</b><br>
-            Las 3 IAs procesan los datos reales suministrados para blindar las operaciones con opciones de máxima protección.
-        </div>
-        
-        <div class="ai-terminal">
-            <b style="color: var(--accent-cyan);">🤖 DEBATE DE LAS TRES IA (ANÁLISIS DEBUG):</b>
-            {{ item.analisis_sintetico }}
-        </div>
+            <div id="ia-{{ item.id }}" class="stats-panel" style="border-color: #facc15; background: #07090e;">
+                <b style="color: #facc15;">🧠 FILOSOFÍA CLEAN:</b><br>
+                Las 3 IAs procesan los datos reales suministrados para blindar las operaciones con opciones de máxima protección.
+            </div>
+            
+            <div class="ai-terminal">
+                <b style="color: var(--accent-cyan);">🤖 DEBATE DE LAS TRES IA (ANÁLISIS CLEAN):</b>
+                {{ item.analisis_sintetico }}
+            </div>
 
-        <div class="ai-terminal" style="border-left-color: #facc15; margin-top: 6px;">
-            <b style="color: #facc15;">🎯 DICTAMEN EJECUTIVO (MÁXIMA PROTECCIÓN):</b>
-            {{ item.dictamen_ia }}
-        </div>
+            <div class="ai-terminal" style="border-left-color: #facc15; margin-top: 6px;">
+                <b style="color: #facc15;">🎯 DICTAMEN EJECUTIVO (MÁXIMA PROTECCIÓN):</b>
+                {{ item.dictamen_ia }}
+            </div>
 
-        <div class="action-row">
-            <a href="/liquidar/{{ item.id }}/acertado" class="btn-win">✅ ACERTADO</a>
-            <a href="/liquidar/{{ item.id }}/fallado" class="btn-loss">❌ FALLADO</a>
-            <button class="btn-copy" onclick="copiarTexto('{{ item.partido }} - Dictamen: {{ item.dictamen_ia }}')">📋 Copiar</button>
+            <div class="action-row">
+                <a href="/liquidar/{{ item.id }}/acertado" class="btn-win">✅ ACERTADO</a>
+                <a href="/liquidar/{{ item.id }}/fallado" class="btn-loss">❌ FALLADO</a>
+                <button class="btn-copy" onclick="copiarTexto('{{ item.partido }} - Dictamen: {{ item.dictamen_ia }}')">📋 Copiar</button>
+            </div>
         </div>
-    </div>
+        {% endfor %}
     {% else %}
-    <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
-        📭 TERMINAL DEBUG LISTA. Inyecta un evento e ingresa las rachas reales para iniciar el debate de las 3 IAs.
-    </div>
-    {% endfor %}
+        <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
+            📭 TERMINAL CLEAN LISTA. Inyecta un evento e ingresa las rachas reales para iniciar el debate de las 3 IAs.
+        </div>
+    {% endif %}
 
     {% elif seccion == 'archivo' %}
-    <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📂 ARCHIVO HISTÓRICO DEBUG</div>
+    <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📂 ARCHIVO HISTÓRICO CLEAN</div>
     
-    {% for p in todos_partidos %}
-    <div class="card" style="border-left-color: var(--accent-cyan);">
-        <div class="tag-row">
-            <span>📅 {{ p.fecha }} - {{ p.hora }} | <b>{{ p.estado }}</b></span>
-            <span>Cuota: {{ p.cuota_custom }}</span>
+    {% if todos_partidos %}
+        {% for p in todos_partidos %}
+        <div class="card" style="border-left-color: var(--accent-cyan);">
+            <div class="tag-row">
+                <span>📅 {{ p.fecha }} - {{ p.hora }} | <b>{{ p.estado }}</b></span>
+                <span>Cuota: {{ p.cuota_custom }}</span>
+            </div>
+            <div class="match-title">⚔️ {{ p.deporte }} // {{ p.local }} vs {{ p.visitante }}</div>
+            <div class="ai-terminal" style="margin-top: 6px;">
+                <b style="color: var(--accent-cyan);">🧠 ANÁLISIS ALMACENADO:</b>
+                {{ p.analisis_sintetico }}
+            </div>
+            <div class="ai-terminal" style="border-left-color: #facc15; margin-top: 6px;">
+                <b style="color: #facc15;">🎯 DICTAMEN:</b>
+                {{ p.dictamen_ia }}
+            </div>
         </div>
-        <div class="match-title">⚔️ {{ p.deporte }} // {{ p.local }} vs {{ p.visitante }}</div>
-        <div class="ai-terminal" style="margin-top: 6px;">
-            <b style="color: var(--accent-cyan);">🧠 ANÁLISIS ALMACENADO:</b>
-            {{ p.analisis_sintetico }}
-        </div>
-        <div class="ai-terminal" style="border-left-color: #facc15; margin-top: 6px;">
-            <b style="color: #facc15;">🎯 DICTAMEN:</b>
-            {{ p.dictamen_ia }}
-        </div>
-    </div>
+        {% endfor %}
     {% else %}
-    <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px;">
-        📭 EL ARCHIVO EN DISCO ESTÁ VACÍO.
-    </div>
-    {% endfor %}
+        <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px;">
+            📭 EL ARCHIVO EN DISCO ESTÁ VACÍO.
+        </div>
+    {% endif %}
 
     {% else %}
     <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📉 HISTORIAL DE RENDIMIENTO Y EV</div>
@@ -672,26 +690,28 @@ HTML_TEMPLATE = """
         <div>Yield<br><span class="bankroll-val">+{{ yield_pct }}%</span></div>
     </div>
 
-    {% for h in historial %}
-    <div class="card" style="border-left-color: {% if 'ACERTADO' in h.resultado %}var(--accent-green){% elif 'FALLADO' in h.resultado %}#ef4444{% else %}var(--accent-cyan);% endif %};">
-        <div class="tag-row">
-            <span>📅 {{ h.fecha_registro }} | Categoria: {{ h.categoria }}</span>
-            <span>Estado: <b style="color: {% if 'ACERTADO' in h.resultado %}var(--accent-green){% elif 'FALLADO' in h.resultado %}#ef4444{% else %}var(--accent-cyan);% endif %};">{{ h.resultado }}</b></span>
+    {% if historial %}
+        {% for h in historial %}
+        <div class="card" style="border-left-color: {% if 'ACERTADO' in h.resultado %}var(--accent-green{% else %}#ef4444{% endif %});">
+            <div class="tag-row">
+                <span>📅 {{ h.fecha_registro }} | Categoria: {{ h.categoria }}</span>
+                <span>Estado: <b style="color: {% if 'ACERTADO' in h.resultado %}var(--accent-green){% else %}#ef4444{% endif %};">{{ h.resultado }}</b></span>
+            </div>
+            <div class="match-title">{{ h.local }} vs {{ h.visitante }}</div>
+            <div style="font-size: 11px; color: var(--text-muted); background: #030712; padding: 8px; border-radius: 6px; margin-top: 6px;">
+                Pick: <b>{{ h.pick }}</b> | Certeza: {{ h.probabilidad }} | Cuota: {{ h.cuota_proyectada }} | EV: <b style="color:var(--accent-green);">{{ h.ev }}</b>
+            </div>
         </div>
-        <div class="match-title">{{ h.local }} vs {{ h.visitante }}</div>
-        <div style="font-size: 11px; color: var(--text-muted); background: #030712; padding: 8px; border-radius: 6px; margin-top: 6px;">
-            Pick: <b>{{ h.pick }}</b> | Certeza: {{ h.probabilidad }} | Cuota: {{ h.cuota_proyectada }} | EV: <b style="color:var(--accent-green);">{{ h.ev }}</b>
-        </div>
-    </div>
+        {% endfor %}
     {% else %}
-    <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px;">
-        📭 NO HAY REGISTROS DE RENDIMIENTO AÚN.
-    </div>
-    {% endfor %}
+        <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px;">
+            📭 NO HAY REGISTROS DE RENDIMIENTO AÚN.
+        </div>
+    {% endif %}
     {% endif %}
 </body>
 </html>
 """
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)
