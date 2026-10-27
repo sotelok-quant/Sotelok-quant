@@ -5,7 +5,7 @@ from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, session
 
 app = Flask(__name__)
-app.secret_key = "sotelok_safe_master_2026"
+app.secret_key = "sotelok_migrated_master_2026"
 
 # Configuración estricta de almacenamiento persistente en el disco de Render
 DATA_DIR = os.environ.get("RENDER_DISK_PATH", "/tmp/sotelok_data")
@@ -15,10 +15,12 @@ if not os.path.exists(DATA_DIR):
 DB_NAME = os.path.join(DATA_DIR, "sotelok_safe_engine.db")
 
 def inicializar_base_datos():
-    """Inicializa la base de datos con persistencia total en disco."""
+    """Inicializa la base de datos y actualiza columnas automáticamente si existen versiones previas en disco."""
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
+        
+        # Crear tablas base si no existen
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS usuarios (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,6 +77,31 @@ def inicializar_base_datos():
         ''')
         conn.commit()
         
+        # Migración automática de columnas por si el archivo en disco es antiguo
+        cursor.execute("PRAGMA table_info(partidos)")
+        columnas_existentes = [col[1] for col in cursor.fetchall()]
+        
+        columnas_requeridas = [
+            ("deporte", "TEXT"), ("tipo_liga", "TEXT"), ("local", "TEXT"), 
+            ("visitante", "TEXT"), ("cuota_custom", "REAL DEFAULT 1.90"), 
+            ("fecha", "TEXT"), ("hora", "TEXT"), ("estado", "TEXT"), 
+            ("analisis_sintetico", "TEXT"), ("dictamen_ia", "TEXT"),
+            ("stat1_label", "TEXT"), ("stat1_val", "TEXT"), 
+            ("stat2_label", "TEXT"), ("stat2_val", "TEXT"),
+            ("stat3_label", "TEXT"), ("stat3_val", "TEXT"), 
+            ("stat4_label", "TEXT"), ("stat4_val", "TEXT"),
+            ("racha_l", "TEXT"), ("racha_v", "TEXT")
+        ]
+        
+        for col_nombre, col_tipo in columnas_requeridas:
+            if col_nombre not in columnas_existentes:
+                try:
+                    cursor.execute(f"ALTER TABLE partidos ADD COLUMN {col_nombre} {col_tipo}")
+                    conn.commit()
+                except Exception as ex:
+                    print(f"No se pudo agregar columna {col_nombre}: {ex}")
+
+        # Datos por defecto si están vacías las tablas principales
         cursor.execute('SELECT COUNT(*) FROM usuarios')
         if cursor.fetchone()[0] == 0:
             cursor.execute("INSERT INTO usuarios (email, password, plan, fecha_registro) VALUES (?, ?, ?, ?)", 
@@ -85,20 +112,16 @@ def inicializar_base_datos():
         if cursor.fetchone()[0] == 0:
             cursor.execute('INSERT INTO bankroll (capital_inicial, capital_actual, total_apostado, total_ganado) VALUES (1000.0, 1000.0, 0.0, 0.0)')
             conn.commit()
+            
         conn.close()
     except Exception as e:
-        print(f"Error en BD: {e}")
+        print(f"Error crítico en BD: {e}")
 
 def motor_trinity_seguro(deporte, local, visitante, cuota_usuario, tipo_liga, racha_manual_l="", racha_manual_v=""):
-    """
-    MOTOR SEGURO TRINITY (v20.1):
-    Procesa los datos de forma robusta utilizando las rachas manuales ingresadas 
-    o respaldos inteligentes estocásticos si se dejan vacías. Cero fallos de servidor.
-    """
+    """MOTOR SEGURO TRINITY (v20.2): Procesamiento robusto sin fallos de servidor."""
     l_clean = local.strip()
     v_clean = visitante.strip()
 
-    # Asignar rachas con respaldo absoluto
     racha_l = racha_manual_l.strip() if racha_manual_l.strip() else "5V - 3E - 2D"
     racha_v = racha_manual_v.strip() if racha_manual_v.strip() else "4V - 3E - 3D"
 
@@ -478,7 +501,7 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>SOTELOK QUANT - Seguro v20.1</title>
+    <title>SOTELOK QUANT - Seguro v20.2</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --bg-terminal: #07090e; --card-bg: #111827; --border-color: #1f2937; --accent-cyan: #00f2fe; --accent-green: #10b981; --text-main: #f9fafb; --text-muted: #9ca3af; }
@@ -529,7 +552,7 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // SEGURO v20.1</div>
+        <div class="logo">⚡ SOTELOK // SEGURO v20.2</div>
         <div><span class="status-dot"></span> <span style="font-size:9px; color:var(--text-muted);">{{ user_email }}</span></div>
     </div>
 
@@ -555,7 +578,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;">⚡ Inyección Segura (Carga Manual de Rachas Reales)</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;">⚡ Inyección Segura (Migración Automática de DB)</div>
         <form method="POST" action="/inyectar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
             <label>Seleccionar Deporte</label>
