@@ -5,12 +5,12 @@ from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, session
 
 app = Flask(__name__)
-app.secret_key = "sotelok_autonomo_2026"
+app.secret_key = "sotelok_sharp_fortress_2026"
 
 DB_NAME = "sotelok_final.db"
 
 def inicializar_base_datos():
-    """Inicializa la base de datos de manera limpia y blindada."""
+    """Inicializa la base de datos de manera limpia, blindada y actualizada."""
     try:
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
@@ -32,9 +32,10 @@ def inicializar_base_datos():
                 local TEXT,
                 visitante TEXT,
                 cuota_custom REAL DEFAULT 1.90,
+                cuota_cierre REAL DEFAULT 0.0,
                 fecha TEXT,
                 hora TEXT,
-                estado TEXT DEFAULT 'TRINITY AUTÓNOMO',
+                estado TEXT DEFAULT 'TRINITY PRO',
                 analisis_sintetico TEXT,
                 dictamen_ia TEXT,
                 stat1_label TEXT, stat1_val TEXT,
@@ -61,6 +62,7 @@ def inicializar_base_datos():
                 pick TEXT,
                 categoria TEXT,
                 cuota_proyectada REAL,
+                cuota_cierre REAL DEFAULT 0.0,
                 probabilidad TEXT,
                 ev TEXT,
                 stake TEXT,
@@ -86,15 +88,44 @@ def inicializar_base_datos():
     except Exception as e:
         print(f"Error BD: {e}")
 
-def motor_trinity_autonomo_pro(deporte, local, visitante, cuota_usuario, tipo_liga, racha_manual_l="", racha_manual_v=""):
-    """MOTOR TRINITY AUTÓNOMO PRO (Alta Precisión Estadística y Cuantitativa)."""
+def calcular_kelly_fraccional(p_certeza, cuota, fraccion=0.25):
+    """Calcula el Stake sugerido por el Criterio de Kelly Fraccional (25% para máxima seguridad)."""
+    p = p_certeza / 100.0
+    q = 1.0 - p
+    b = cuota - 1.0
+    if b <= 0:
+        return 1.0
+    
+    f_kelly = (b * p - q) / b
+    if f_kelly <= 0:
+        return 0.5  # Stake mínimo de seguridad
+    
+    stake_sugerido = round(f_kelly * fraccion * 100, 2)
+    return max(0.5, min(stake_sugerido, 2.5))  # Tope máximo del 2.5% del capital por operación
+
+def verificar_circuit_breaker():
+    """Verifica si ha habido 3 fallos consecutivos recientes para activar el freno de seguridad."""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute("SELECT resultado FROM historial_ia ORDER BY id DESC LIMIT 3")
+        ultimos = cursor.fetchall()
+        conn.close()
+        
+        if len(ultimos) >= 3 and all('FALLADO' in u[0] for u in ultimos):
+            return True
+    except:
+        pass
+    return False
+
+def motor_trinity_sharp_fortress(deporte, local, visitante, cuota_usuario, tipo_liga, racha_manual_l="", racha_manual_v=""):
+    """MOTOR TRINITY SHARP FORTRESS (Con Kelly Fraccional + Métricas Estocásticas Avanzadas)."""
     l_clean = local.strip()
     v_clean = visitante.strip()
 
     racha_l = racha_manual_l.strip() if racha_manual_l.strip() else "6V - 2E - 2D"
     racha_v = racha_manual_v.strip() if racha_manual_v.strip() else "5V - 3E - 2D"
 
-    # Algoritmo estocástico basado en entropía de nombres para xG y métricas reales dinámicas
     s_l = sum(ord(c) * (i + 1) for i, c in enumerate(l_clean.lower()))
     s_v = sum(ord(c) * (i + 1) for i, c in enumerate(v_clean.lower()))
     f_liga = 1.25 if tipo_liga == "Secundaria / Nicho / Ascenso" else 1.0
@@ -165,21 +196,22 @@ def motor_trinity_autonomo_pro(deporte, local, visitante, cuota_usuario, tipo_li
 
     prob_implica = (1.0 / cuota_usuario) * 100 if cuota_usuario > 1 else 50.0
     ev_calc = round(certeza - prob_implica, 1)
+    stake_kelly = calcular_kelly_fraccional(certeza, cuota_usuario)
 
     analisis_sintetico = (
         f"• Deporte Analizado: {deporte} [{tipo_liga}]\n"
-        f"• Motor Autónomo Pro: Procesamiento con métricas en tiempo real ({racha_l} vs {racha_v}).\n"
+        f"• Motor Sharp Fortress: Procesamiento dinámico de datos ({racha_l} vs {racha_v}).\n"
         f"• IA 1 (Cuantitativa): Modelado estocástico de Poisson y xG.\n"
         f"• IA 2 (Contextual): Evaluación de ritmo y eficiencia específica.\n"
-        f"• IA 3 (Ciber-Auditor de Riesgo): Validación de protección estricta de bankroll.\n\n"
+        f"• IA 3 (Ciber-Auditor de Riesgo): Criterio de Kelly al {stake_kelly}% del Bankroll.\n\n"
         f"🤖 VEREDICTO DE LA TRINIDAD (2 OPCIONES DE MÁXIMA PROTECCIÓN +EV):\n\n"
         f"1️⃣ {opcion_1}\n\n"
         f"2️⃣ {opcion_2}"
     )
 
-    dictamen_ia = f"Pick Autónomo Pro: {pick_final} | Certeza: {certeza}% | Cuota: {cuota_usuario} | EV: +{max(2.1, ev_calc)}%"
+    dictamen_ia = f"Pick Sharp Fortress: {pick_final} | Certeza: {certeza}% | Cuota: {cuota_usuario} | EV: +{max(2.1, ev_calc)}% | Stake Kelly Sugerido: {stake_kelly}%"
 
-    return (analisis_sintetico, dictamen_ia, pick_final, certeza, ev_calc,
+    return (analisis_sintetico, dictamen_ia, pick_final, certeza, ev_calc, stake_kelly,
             stat1_l, stat1_v, stat2_l, stat2_v, stat3_l, stat3_v, stat4_l, stat4_v, racha_l, racha_v)
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -264,6 +296,8 @@ def home():
     total_partidos_disco = cursor.fetchone()[0]
     conn.close()
 
+    circuit_breaker_active = verificar_circuit_breaker()
+
     analisis_final = []
     for p in partidos:
         analisis_final.append({
@@ -272,6 +306,7 @@ def home():
             "partido": f"{p['local']} vs {p['visitante']}",
             "fecha": p["fecha"], "hora": p["hora"], "estado": p["estado"],
             "cuota_custom": p["cuota_custom"],
+            "cuota_cierre": p["cuota_cierre"],
             "analisis_sintetico": p["analisis_sintetico"],
             "dictamen_ia": p["dictamen_ia"],
             "stats": {
@@ -283,7 +318,7 @@ def home():
             }
         })
 
-    return render_template_string(HTML_TEMPLATE, resultados=analisis_final, fecha_seleccionada=fecha_elegida, bankroll=bankroll, roi=roi, yield_pct=yield_pct, total_partidos=total_partidos_disco, seccion="live", user_email=session.get('email'), user_plan=session.get('plan'))
+    return render_template_string(HTML_TEMPLATE, resultados=analisis_final, fecha_seleccionada=fecha_elegida, bankroll=bankroll, roi=roi, yield_pct=yield_pct, total_partidos=total_partidos_disco, circuit_breaker=circuit_breaker_active, seccion="live", user_email=session.get('email'), user_plan=session.get('plan'))
 
 @app.route('/archivo')
 def archivo():
@@ -303,6 +338,9 @@ def inyectar():
     if 'user_id' not in session:
         return redirect(url_for('login'))
         
+    if verificar_circuit_breaker():
+        return redirect(url_for('home'))
+
     deporte = request.form.get('deporte', 'Fútbol').strip()
     tipo_liga = request.form.get('tipo_liga', 'Liga Principal').strip()
     local = request.form.get('local', '').strip()
@@ -320,7 +358,7 @@ def inyectar():
         fecha_str = datetime.now().strftime("%d/%m/%Y")
 
     if local and visitante:
-        (s_an, d_ia, pick, conf, ev, st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v) = motor_trinity_autonomo_pro(
+        (s_an, d_ia, pick, conf, ev, stake_k, st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v) = motor_trinity_sharp_fortress(
             deporte, local, visitante, cuota, tipo_liga, racha_manual_l, racha_manual_v
         )
         
@@ -329,7 +367,7 @@ def inyectar():
         cursor.execute('''
             INSERT INTO partidos (deporte, tipo_liga, local, visitante, cuota_custom, fecha, hora, estado, analisis_sintetico, dictamen_ia,
                                   stat1_label, stat1_val, stat2_label, stat2_val, stat3_label, stat3_val, stat4_label, stat4_val, racha_l, racha_v)
-            VALUES (?, ?, ?, ?, ?, ?, ?, '⚡ AUTÓNOMO PRO', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, '⚡ SHARP FORTRESS', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (deporte, tipo_liga, local, visitante, cuota, fecha_str, datetime.now().strftime("%H:%M"), s_an, d_ia,
               st1_l, st1_v, st2_l, st2_v, st3_l, st3_v, st4_l, st4_v, r_l, r_v))
         partido_id = cursor.lastrowid
@@ -337,11 +375,24 @@ def inyectar():
         cursor.execute('''
             INSERT INTO historial_ia (partido_id, pick, categoria, cuota_proyectada, probabilidad, ev, stake, resultado, fecha_registro)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (partido_id, pick, f"{deporte} [{tipo_liga}]", cuota, f"{conf}%", f"+{ev}%", "2.0%", "GUARDADO EN DISCO", datetime.now().strftime("%d/%m/%Y %H:%M")))
+        ''', (partido_id, pick, f"{deporte} [{tipo_liga}]", cuota, f"{conf}%", f"+{ev}%", f"{stake_k}%", "GUARDADO EN DISCO", datetime.now().strftime("%d/%m/%Y %H:%M")))
         conn.commit()
         conn.close()
 
     return redirect(url_for('home', fecha=fecha_iso))
+
+@app.route('/registrar_clv/<int:partidoid>', methods=['POST'])
+def registrar_clv(partidoid):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    cuota_cierre = float(request.form.get('cuota_cierre', 0.0) or 0.0)
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute('UPDATE partidos SET cuota_cierre = ? WHERE id = ?', (cuota_cierre, partidoid))
+    cursor.execute('UPDATE historial_ia SET cuota_cierre = ? WHERE partido_id = ?', (cuota_cierre, partidoid))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('home'))
 
 @app.route('/liquidar/<int:partidoid>/<estado>')
 def liquidar(partidoid, estado):
@@ -356,16 +407,27 @@ def liquidar(partidoid, estado):
         cursor.execute('SELECT * FROM bankroll WHERE id = 1')
         b = cursor.fetchone()
         cap_a, t_apo, t_gan = b[2], b[3], b[4]
-        monto = cap_a * 0.01
+        
+        # Obtener el stake de Kelly que se registró en el historial
+        cursor.execute('SELECT stake FROM historial_ia WHERE partido_id = ?', (partidoid,))
+        h_row = cursor.fetchone()
+        stake_pct = 1.0
+        if h_row and h_row[0]:
+            try:
+                stake_pct = float(h_row[0].replace('%', ''))
+            except:
+                stake_pct = 1.0
+
+        monto = cap_a * (stake_pct / 100.0)
 
         if estado == 'acertado':
             ganancia = monto * cuota
             cap_a += (ganancia - monto)
             t_gan += ganancia
-            res_str = '✅ ACERTADO (PRO)'
+            res_str = '✅ ACERTADO (SHARP)'
         else:
             cap_a -= monto
-            res_str = '❌ FALLADO (PRO)'
+            res_str = '❌ FALLADO (SHARP)'
 
         cursor.execute('UPDATE bankroll SET capital_actual = ?, total_apostado = ?, total_ganado = ? WHERE id = 1', (round(cap_a, 2), round(t_apo + monto, 2), round(t_gan, 2)))
         cursor.execute('UPDATE partidos SET estado = ? WHERE id = ?', (res_str, partidoid))
@@ -381,7 +443,7 @@ def rendimiento():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute('SELECT h.*, p.local, p.visitante, p.cuota_custom FROM historial_ia h JOIN partidos p ON h.partido_id = p.id ORDER BY h.id DESC')
+    cursor.execute('SELECT h.*, p.local, p.visitante, p.cuota_custom, p.cuota_cierre FROM historial_ia h JOIN partidos p ON h.partido_id = p.id ORDER BY h.id DESC')
     historial = [dict(row) for row in cursor.fetchall()]
     
     cursor.execute('SELECT * FROM bankroll WHERE id = 1')
@@ -392,13 +454,18 @@ def rendimiento():
     yield_pct = round(((t_gan - t_apo) / t_apo) * 100, 2) if t_apo > 0 else 0.0
     total_apuestas = len(historial)
     win_rate = round((sum(1 for h in historial if 'ACERTADO' in h['resultado']) / total_apuestas) * 100, 1) if total_apuestas > 0 else 0.0
+    
+    # Métrica CLV (Vencer a la cuota de cierre)
+    clv_vencidos = sum(1 for h in historial if h['cuota_cierre'] > 0 and h['cuota_proyectada'] > h['cuota_cierre'])
+    clv_rate = round((clv_vencidos / total_apuestas) * 100, 1) if total_apuestas > 0 else 0.0
+
     conn.close()
 
-    return render_template_string(HTML_TEMPLATE, resultados=[], fecha_seleccionada="", historial=historial, bankroll=bankroll, roi=roi, yield_pct=yield_pct, win_rate=win_rate, total_apuestas=total_apuestas, seccion="rendimiento", user_email=session.get('email'), user_plan=session.get('plan'))
+    return render_template_string(HTML_TEMPLATE, resultados=[], fecha_seleccionada="", historial=historial, bankroll=bankroll, roi=roi, yield_pct=yield_pct, win_rate=win_rate, clv_rate=clv_rate, total_apuestas=total_apuestas, seccion="rendimiento", user_email=session.get('email'), user_plan=session.get('plan'))
 
 @app.route('/manifest.json')
 def manifest():
-    return app.response_class('{"name": "SOTELOK Pro Desk", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
+    return app.response_class('{"name": "SOTELOK Sharp Desk", "short_name": "SOTELOK", "start_url": "/", "display": "standalone", "background_color": "#07090e", "theme_color": "#00f2fe"}', mimetype='application/json')
 
 @app.route('/sw.js')
 def sw():
@@ -454,7 +521,7 @@ HTML_TEMPLATE = """
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>SOTELOK QUANT - Pro v21.0</title>
+    <title>SOTELOK QUANT - Sharp v22.0</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root { --bg-terminal: #07090e; --card-bg: #111827; --border-color: #1f2937; --accent-cyan: #00f2fe; --accent-green: #10b981; --text-main: #f9fafb; --text-muted: #9ca3af; }
@@ -470,6 +537,8 @@ HTML_TEMPLATE = """
 
         .bankroll-banner { background: #030712; border: 1px solid var(--accent-cyan); border-radius: 8px; padding: 10px; margin-bottom: 12px; display: flex; justify-content: space-around; text-align: center; font-size: 10px; }
         .bankroll-val { color: var(--accent-green); font-weight: 900; font-size: 12px; }
+
+        .circuit-breaker-banner { background: #7f1d1d; border: 1px solid #ef4444; color: #fca5a5; border-radius: 8px; padding: 10px; margin-bottom: 12px; text-align: center; font-size: 11px; font-weight: 800; }
 
         .terminal-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
         label { font-size: 10px; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 3px; font-weight: 800; }
@@ -505,9 +574,16 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="terminal-header">
-        <div class="logo">⚡ SOTELOK // PRO v21.0</div>
+        <div class="logo">⚡ SOTELOK // SHARP v22.0</div>
         <div><span class="status-dot"></span> <span style="font-size:9px; color:var(--text-muted);">{{ user_email }}</span></div>
     </div>
+
+    {% if circuit_breaker %}
+    <div class="circuit-breaker-banner">
+        🚨 FRENO ANTIRACHA ACTIVADO (CIRCUIT BREAKER)<br>
+        <span style="font-size: 9px; font-weight: 400;">Se detectaron 3 fallos consecutivos. Inyección bloqueada temporalmente para proteger el Bankroll.</span>
+    </div>
+    {% endif %}
 
     <div class="bankroll-banner">
         <div>Capital<br><span class="bankroll-val">${{ bankroll.capital_actual }}</span></div>
@@ -528,7 +604,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="nav-bar">
-        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar Pro</a>
+        <a href="/" class="nav-btn {% if seccion == 'live' %}active{% endif %}">📡 Radar Sharp</a>
         <a href="/archivo" class="nav-btn {% if seccion == 'archivo' %}active{% endif %}">📂 Archivo</a>
         <a href="/rendimiento" class="nav-btn {% if seccion == 'rendimiento' %}active{% endif %}">📉 Historial</a>
         <a href="/logout" class="nav-btn" style="background:#7f1d1d; color:#fca5a5;">🚪 Salir</a>
@@ -543,7 +619,7 @@ HTML_TEMPLATE = """
     </div>
 
     <div class="terminal-box" style="border-color: #0369a1;">
-        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;">⚡ Inyección Autónoma Pro (Sin Menús, Directo al Motor)</div>
+        <div style="color: var(--accent-cyan); font-weight: 800; font-size: 11px; margin-bottom: 8px; text-transform: uppercase;">⚡ Inyección Sharp Fortress (Kelly + CLV)</div>
         <form method="POST" action="/inyectar">
             <input type="hidden" name="fecha" value="{{ fecha_seleccionada }}">
             
@@ -577,9 +653,11 @@ HTML_TEMPLATE = """
                 </div>
             </div>
 
-            <label>Cuota del Bookmaker</label>
+            <label>Cuota Entrada Bookmaker</label>
             <input type="number" step="0.01" name="cuota_custom" value="1.90">
-            <button type="submit" class="btn-exec">Activar Análisis Trinity Pro</button>
+            <button type="submit" class="btn-exec" {% if circuit_breaker %}disabled style="background:#374151; cursor:not-allowed;"{% endif %}>
+                {% if circuit_breaker %}Bloqueado por Antiracha{% else %}Activar Análisis Sharp Fortress{% endif %}
+            </button>
         </form>
     </div>
 
@@ -632,18 +710,27 @@ HTML_TEMPLATE = """
             </div>
 
             <div id="ia-{{ item.id }}" class="stats-panel" style="border-color: #facc15; background: #07090e;">
-                <b style="color: #facc15;">🧠 FILOSOFÍA PRO:</b><br>
-                Las 3 IAs procesan los datos reales suministrados para blindar las operaciones con opciones de máxima protección.
+                <b style="color: #facc15;">🧠 FILOSOFÍA SHARP:</b><br>
+                Stake calculado con Kelly Fraccional del 25% para asegurar crecimiento compuesto sostenido.
             </div>
             
             <div class="ai-terminal">
-                <b style="color: var(--accent-cyan);">🤖 DEBATE DE LAS TRES IA (ANÁLISIS PRO):</b>
+                <b style="color: var(--accent-cyan);">🤖 DEBATE DE LAS TRES IA (SHARP FORTRESS):</b>
                 {{ item.analisis_sintetico }}
             </div>
 
             <div class="ai-terminal" style="border-left-color: #facc15; margin-top: 6px;">
-                <b style="color: #facc15;">🎯 DICTAMEN EJECUTIVO (MÁXIMA PROTECCIÓN):</b>
+                <b style="color: #facc15;">🎯 DICTAMEN EJECUTIVO (+EV & KELLY STAKE):</b>
                 {{ item.dictamen_ia }}
+            </div>
+
+            <!-- Registro de Cuota de Cierre (CLV) -->
+            <div style="background: #030712; padding: 8px; border-radius: 6px; margin-top: 8px; border: 1px solid #1f2937;">
+                <form method="POST" action="/registrar_clv/{{ item.id }}" style="display: flex; gap: 4px; align-items: center; margin-bottom: 0;">
+                    <span style="font-size: 9px; color: var(--text-muted); font-weight: 800; white-space: nowrap;">CLV (Cuota Cierre):</span>
+                    <input type="number" step="0.01" name="cuota_cierre" value="{{ item.cuota_cierre }}" placeholder="Ej. 1.82" style="margin-bottom: 0; padding: 4px; font-size: 11px;">
+                    <button type="submit" style="background: #374151; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; font-size: 9px; font-weight: 800; cursor: pointer;">Guardar</button>
+                </form>
             </div>
 
             <div class="action-row">
@@ -655,19 +742,19 @@ HTML_TEMPLATE = """
         {% endfor %}
     {% else %}
         <div style="text-align: center; color: var(--text-muted); padding: 30px; font-size: 12px; background: var(--card-bg); border-radius: 8px; border: 1px dashed var(--border-color);">
-            📭 TERMINAL PRO LISTA. Ingresa los equipos reales y sus rachas para activar el debate de las 3 IAs.
+            📭 TERMINAL SHARP FORTRESS LISTA. Ingresa los equipos para calcular el Stake por Kelly y auditar el +EV.
         </div>
     {% endif %}
 
     {% elif seccion == 'archivo' %}
-    <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📂 ARCHIVO HISTÓRICO PRO</div>
+    <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📂 ARCHIVO HISTÓRICO SHARP</div>
     
     {% if todos_partidos %}
         {% for p in todos_partidos %}
         <div class="card" style="border-left-color: var(--accent-cyan);">
             <div class="tag-row">
                 <span>📅 {{ p.fecha }} - {{ p.hora }} | <b>{{ p.estado }}</b></span>
-                <span>Cuota: {{ p.cuota_custom }}</span>
+                <span>Cuota: {{ p.cuota_custom }} {% if p.cuota_cierre > 0 %}| CLV: {{ p.cuota_cierre }}{% endif %}</span>
             </div>
             <div class="match-title">⚔️ {{ p.deporte }} // {{ p.local }} vs {{ p.visitante }}</div>
             <div class="ai-terminal" style="margin-top: 6px;">
@@ -687,12 +774,19 @@ HTML_TEMPLATE = """
     {% endif %}
 
     {% else %}
-    <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📉 HISTORIAL DE RENDIMIENTO Y EV</div>
+    <div style="font-size: 13px; font-weight: 800; color: var(--accent-cyan); text-align: center; margin-bottom: 10px; text-transform: uppercase;">📉 HISTORIAL DE RENDIMIENTO SHARP</div>
     
     <div class="bankroll-banner" style="margin-bottom: 12px;">
         <div>Operaciones<br><span class="bankroll-val" style="color:var(--text-main);">{{ total_apuestas }}</span></div>
         <div>Win Rate<br><span class="bankroll-val">{{ win_rate }}%</span></div>
         <div>Yield<br><span class="bankroll-val">+{{ yield_pct }}%</span></div>
+        <div>CLV Win Rate<br><span class="bankroll-val" style="color:var(--accent-cyan);">
+            {% if clv_rate is defined %}
+                {{ clv_rate }}%
+            {% else %}
+                0.0%
+            {% endif %}
+        </span></div>
     </div>
 
     {% if historial %}
@@ -704,7 +798,7 @@ HTML_TEMPLATE = """
             </div>
             <div class="match-title">{{ h.local }} vs {{ h.visitante }}</div>
             <div style="font-size: 11px; color: var(--text-muted); background: #030712; padding: 8px; border-radius: 6px; margin-top: 6px;">
-                Pick: <b>{{ h.pick }}</b> | Certeza: {{ h.probabilidad }} | Cuota: {{ h.cuota_proyectada }} | EV: <b style="color:var(--accent-green);">{{ h.ev }}</b>
+                Pick: <b>{{ h.pick }}</b> | Certeza: {{ h.probabilidad }} | Stake Kelly: <b style="color:var(--accent-cyan);">{{ h.stake }}</b> | Cuota: {{ h.cuota_proyectada }} {% if h.cuota_cierre > 0 %}| CLV Cierre: <b>{{ h.cuota_cierre }}</b>{% endif %} | EV: <b style="color:var(--accent-green);">{{ h.ev }}</b>
             </div>
         </div>
         {% endfor %}
