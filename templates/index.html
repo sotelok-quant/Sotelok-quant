@@ -3,173 +3,198 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOTELOK // SHARP v22.0 - Radar Cuantitativo</title>
-    <!-- Google Fonts para tipografía industrial y moderna -->
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <title>SOTELOK // SHARP TERMINAL</title>
     <style>
         :root {
-            --bg-deep: #0a0e17;
-            --panel-bg: #131c2e;
-            --accent-green: #00ff66;
-            --accent-cyan: #00f0ff;
-            --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --danger: #ff3366;
-            --border-color: #1e293b;
+            --bg-dark: #0a0d14;
+            --panel-bg: #121824;
+            --card-bg: #1a2233;
+            --accent-cyan: #00f2fe;
+            --accent-green: #00ff87;
+            --accent-purple: #9d4edd;
+            --text-main: #ffffff;
+            --text-muted: #8e9bb0;
+            --border-color: #2a354d;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Inter', sans-serif;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
         }
 
         body {
-            background-color: var(--bg-deep);
+            background-color: var(--bg-dark);
             color: var(--text-main);
-            min-height: 100vh;
-            padding: 20px;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
         }
 
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 20px;
-        }
-
-        .brand {
-            font-family: 'Share Tech Mono', monospace;
-            color: var(--accent-cyan);
-            font-size: 1.5rem;
-            letter-spacing: 2px;
-            margin-bottom: 5px;
-        }
-
-        h1 {
-            font-size: 1.8rem;
-            font-weight: 800;
-            color: var(--text-main);
-        }
-
-        .card {
-            background-color: var(--panel-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        }
-
-        .form-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+        .terminal-container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
             gap: 15px;
         }
 
-        @media (max-width: 600px) {
-            .form-grid {
-                grid-template-columns: 1fr;
-            }
+        .header-title {
+            text-align: center;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+            color: var(--accent-cyan);
+            font-size: 1.2rem;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .form-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
 
         .input-group {
-            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
 
         label {
-            display: block;
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
-            margin-bottom: 6px;
-            font-family: 'Share Tech Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
         }
 
-        input, select {
-            width: 100%;
-            background-color: #0d1420;
+        select, input {
+            background: var(--card-bg);
             border: 1px solid var(--border-color);
-            border-radius: 6px;
-            padding: 12px;
-            color: var(--text-main);
-            font-size: 1rem;
+            color: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.95rem;
             outline: none;
-            transition: border-color 0.3s;
         }
 
-        input:focus, select:focus {
+        select:focus, input:focus {
             border-color: var(--accent-cyan);
         }
 
-        .btn-sharp {
-            width: 100%;
-            background: linear-gradient(135deg, #00f0ff 0%, #0077ff 100%);
-            color: #000;
-            font-weight: 800;
-            padding: 14px;
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .btn-analyze {
+            background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+            color: white;
             border: none;
-            border-radius: 6px;
-            font-size: 1rem;
+            padding: 14px;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            letter-spacing: 1px;
             cursor: pointer;
             text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: transform 0.2s, box-shadow 0.2s;
-            margin-top: 10px;
+            box-shadow: 0 4px 15px rgba(0, 198, 255, 0.3);
+            margin-top: 5px;
         }
 
-        .btn-sharp:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+        .btn-analyze:active {
+            transform: scale(0.98);
         }
 
-        /* Resultados Ocultos por defecto */
-        #resultado-container {
+        /* RESULTADOS Y PESTAÑAS estilo Flashscore */
+        .results-panel {
             display: none;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 15px;
+            flex-direction: column;
+            gap: 15px;
         }
 
-        .match-title {
-            font-size: 1.4rem;
+        .match-header {
+            text-align: center;
+            font-size: 1.1rem;
             font-weight: 800;
             color: var(--accent-green);
-            margin-bottom: 20px;
-            text-align: center;
-            font-family: 'Share Tech Mono', monospace;
         }
 
-        .prob-bars {
-            display: flex;
-            justify-content: space-between;
-            background: #0d1420;
-            padding: 15px;
+        .prob-bar-container {
+            background: var(--card-bg);
             border-radius: 8px;
-            margin-bottom: 20px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-around;
             text-align: center;
         }
 
-        .prob-item span {
-            display: block;
-            font-size: 0.8rem;
-            color: var(--text-muted);
+        .prob-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
 
-        .prob-item strong {
-            font-size: 1.2rem;
+        .prob-val {
+            font-size: 1.1rem;
+            font-weight: 800;
             color: var(--accent-cyan);
-            font-family: 'Share Tech Mono', monospace;
         }
 
+        .prob-lbl {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        /* NAVEGACIÓN POR PESTAÑAS */
+        .tab-nav {
+            display: flex;
+            gap: 5px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+            overflow-x: auto;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+
+        .tab-btn.active {
+            background: var(--card-bg);
+            color: var(--accent-cyan);
+            border-bottom: 2px solid var(--accent-cyan);
+        }
+
+        /* TARJETAS DE ESCENARIOS */
         .scenario-box {
-            background-color: #0d1420;
+            background: var(--card-bg);
             border-left: 4px solid var(--accent-cyan);
-            padding: 15px;
-            border-radius: 0 8px 8px 0;
-            margin-bottom: 15px;
+            border-radius: 8px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
         .scenario-box.alt {
@@ -177,11 +202,10 @@
         }
 
         .scenario-tag {
-            font-family: 'Share Tech Mono', monospace;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
+            font-weight: 800;
             color: var(--accent-cyan);
-            text-transform: uppercase;
-            margin-bottom: 4px;
+            letter-spacing: 0.5px;
         }
 
         .scenario-box.alt .scenario-tag {
@@ -189,155 +213,170 @@
         }
 
         .scenario-heading {
-            font-size: 1.05rem;
-            font-weight: 600;
-            margin-bottom: 8px;
+            font-size: 0.95rem;
+            font-weight: 700;
         }
 
         .scenario-desc {
-            font-size: 0.9rem;
+            font-size: 0.82rem;
             color: var(--text-muted);
             line-height: 1.4;
         }
 
-        .loading {
-            text-align: center;
-            color: var(--accent-cyan);
-            font-family: 'Share Tech Mono', monospace;
+        .loading-text {
             display: none;
-            margin: 15px 0;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--accent-cyan);
+            letter-spacing: 1px;
         }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <header>
-            <div class="brand">SOTELOK // SHARP v22.0</div>
-            <h1>Terminal Cuantitativa Autónoma</h1>
-        </header>
+<div class="terminal-container">
+    <div class="header-title">SOTELOK // SHARP TERMINAL</div>
 
-        <!-- Formulario de Entrada -->
-        <div class="card">
-            <div class="form-grid">
-                <div class="input-group">
-                    <label>DEPORTE / LIGA</label>
-                    <select id="deporte">
-                        <option value="futbol_secundaria">Fútbol (Ligas Secundarias)</option>
-                        <option value="beisbol_mlb">Béisbol (MLB / LVBP)</option>
-                        <option value="baloncesto">Baloncesto (NBA / EuroLeague)</option>
-                        <option value="tenis_mesa">Tenis de Mesa (Liga Pro)</option>
-                        <option value="hockey">Hockey sobre Hielo (NHL)</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <label>CUOTA BOOKMAKER</label>
-                    <input type="number" id="cuota" value="1.95" step="0.01">
-                </div>
-                <div class="input-group">
-                    <label>EQUIPO LOCAL</label>
-                    <input type="text" id="local" value="St. Pauli">
-                </div>
-                <div class="input-group">
-                    <label>EQUIPO VISITANTE</label>
-                    <input type="text" id="visitante" value="Nürnberg">
-                </div>
-                <div class="input-group">
-                    <label>MÉTRICA xG / OFENSIVA LOCAL</label>
-                    <input type="number" id="xG_local" value="1.85" step="0.05">
-                </div>
-                <div class="input-group">
-                    <label>MÉTRICA xG / OFENSIVA VISITANTE</label>
-                    <input type="number" id="xG_visitante" value="0.95" step="0.05">
-                </div>
-            </div>
-            <button class="btn-sharp" onclick="ejecutarAnalisisSharp()">Activar Análisis Sharp Fortress</button>
-            <div id="loading" class="loading">EJECUTANDO SIMULACIÓN MONTE CARLO (5,000 ITERACIONES)...</div>
+    <div class="form-panel">
+        <div class="input-group">
+            <label for="deporte">Deporte / Disciplina</label>
+            <select id="deporte">
+                <option value="futbol_secundaria">Fútbol (Ligas Secundarias / General)</option>
+                <option value="beisbol_mlb">Béisbol (MLB / Ligas)</option>
+                <option value="baloncesto_nba">Baloncesto (NBA / Ligas)</option>
+            </select>
         </div>
 
-        <!-- Contenedor de Resultados Estilo Radar -->
-        <div id="resultado-container" class="card">
-            <div class="match-title" id="res-partido"></div>
-            
-            <div class="prob-bars">
-                <div class="prob-item">
-                    <span>PROBABILIDAD LOCAL</span>
-                    <strong id="prob-l">0%</strong>
-                </div>
-                <div class="prob-item">
-                    <span>EMPATE / VARIANZA</span>
-                    <strong id="prob-e">0%</strong>
-                </div>
-                <div class="prob-item">
-                    <span>PROBABILIDAD VISITANTE</span>
-                    <strong id="prob-v">0%</strong>
-                </div>
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="local">Equipo Local</label>
+                <input type="text" id="local" placeholder="Ej. Real Sociedad">
             </div>
-
-            <div id="escenarios-list">
-                <!-- Se inyectarán dinámicamente los escenarios -->
+            <div class="input-group">
+                <label for="visitante">Equipo Visitante</label>
+                <input type="text" id="visitante" placeholder="Ej. Lyon">
             </div>
         </div>
+
+        <div class="grid-2">
+            <div class="input-group">
+                <label for="xg_local">Métrica Local (xG/Carreras/Pts)</label>
+                <input type="number" step="0.01" id="xg_local" value="1.85">
+            </div>
+            <div class="input-group">
+                <label for="xg_visitante">Métrica Visitante (xG/Carreras/Pts)</label>
+                <input type="number" step="0.01" id="xg_visitante" value="1.10">
+            </div>
+        </div>
+
+        <div class="input-group">
+            <label for="cuota">Cuota Bookmaker (Línea)</label>
+            <input type="number" step="0.01" id="cuota" value="1.95">
+        </div>
+
+        <button class="btn-analyze" onclick="procesarAnalisis()">Activar Análisis Sharp Fortress</button>
+        <div class="loading-text" id="loading">EJECUTANDO MODELO ESTOCÁSTICO Y CONSULTA BD...</div>
     </div>
 
-    <script>
-        async function ejecutarAnalisisSharp() {
-            const btn = document.querySelector('.btn-sharp');
-            const loading = document.getElementById('loading');
-            const container = document.getElementById('resultado-container');
+    <!-- RESULTADOS DINÁMICOS -->
+    <div class="results-panel" id="results-panel">
+        <div class="match-header" id="match-title">Partido vs Partido</div>
 
-            btn.style.display = 'none';
-            loading.style.display = 'block';
-            container.style.display = 'none';
+        <div class="prob-bar-container" id="prob-container">
+            <div class="prob-item">
+                <span class="prob-lbl">PROB. LOCAL</span>
+                <span class="prob-val" id="prob-local">0%</span>
+            </div>
+            <div class="prob-item" id="draw-item">
+                <span class="prob-lbl">EMPATE</span>
+                <span class="prob-val" id="prob-draw">0%</span>
+            </div>
+            <div class="prob-item">
+                <span class="prob-lbl">PROB. VISITANTE</span>
+                <span class="prob-val" id="prob-away">0%</span>
+            </div>
+        </div>
 
-            const payload = {
-                deporte: document.getElementById('deporte').value,
-                local: document.getElementById('local').value,
-                visitante: document.getElementById('visitante').value,
-                xG_local: parseFloat(document.getElementById('xG_local').value),
-                xG_visitante: parseFloat(document.getElementById('xG_visitante').value),
-                cuota: parseFloat(document.getElementById('cuota').value)
-            };
+        <!-- NAVEGACIÓN ESTILO FLASHSCORE -->
+        <div class="tab-nav">
+            <button class="tab-btn active">ANALISIS SHARP</button>
+            <button class="tab-btn">GOLES / TOTALES</button>
+            <button class="tab-btn">CÓRNERS / CUARTOS</button>
+            <button class="tab-btn">TARJETAS / LÍNEAS</button>
+        </div>
 
-            try {
-                const response = await fetch('/analizar_sharp', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+        <div id="escenarios-container" style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- Escenarios inyectados vía JS -->
+        </div>
+    </div>
+</div>
+
+<script>
+    function procesarAnalisis() {
+        const deporteSelect = document.getElementById('deporte').value;
+        const localVal = document.getElementById('local').value || "Equipo Local";
+        const visitanteVal = document.getElementById('visitante').value || "Equipo Visitante";
+        const xgLocalVal = document.getElementById('xg_local').value;
+        const xgVisitanteVal = document.getElementById('xg_visitante').value;
+        const cuotaVal = document.getElementById('cuota').value;
+
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('results-panel').style.display = 'none';
+
+        fetch('/analizar_sharp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                deporte: deporteSelect,
+                local: localVal,
+                visitante: visitanteVal,
+                xG_local: xgLocalVal,
+                xG_visitante: xgVisitanteVal,
+                cuota: cuotaVal
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('loading').style.display = 'none';
+
+            if (data.status === 'success') {
+                document.getElementById('results-panel').style.display = 'flex';
+                document.getElementById('match-title').innerText = data.partido;
+
+                document.getElementById('prob-local').innerText = data.probabilidades.local + '%';
+                document.getElementById('prob-draw').innerText = data.probabilidades.empate + '%';
+                document.getElementById('prob-away').innerText = data.probabilidades.visitante + '%';
+
+                // Ocultar fila de empate si es Baloncesto
+                if (deporteSelect.includes('basket') || deporteSelect.includes('nba')) {
+                    document.getElementById('draw-item').style.display = 'none';
+                } else {
+                    document.getElementById('draw-item').style.display = 'flex';
+                }
+
+                let htmlEscenarios = '';
+                data.escenarios_estrategicos.forEach((esc, index) => {
+                    const altClass = index > 0 ? 'alt' : '';
+                    htmlEscenarios += `
+                        <div class="scenario-box ${altClass}">
+                            <div class="scenario-tag">${esc.rango}</div>
+                            <div class="scenario-heading">${esc.titulo}</div>
+                            <div class="scenario-desc">${esc.analisis}</div>
+                        </div>
+                    `;
                 });
 
-                const data = await response.json();
-
-                if (data.status === 'success') {
-                    document.getElementById('res-partido').innerText = data.partido;
-                    document.getElementById('prob-l').innerText = data.probabilidades.local + '%';
-                    document.getElementById('prob-e').innerText = data.probabilidades.empate + '%';
-                    document.getElementById('prob-v').innerText = data.probabilidades.visitante + '%';
-
-                    let htmlEscenarios = '';
-                    data.escenarios_estrategicos.forEach((esc, index) => {
-                        const altClass = index > 0 ? 'alt' : '';
-                        htmlEscenarios += `
-                            <div class="scenario-box ${altClass}">
-                                <div class="scenario-tag">${esc.rango} // ${esc.probabilidad}</div>
-                                <div class="scenario-heading">${esc.titulo}</div>
-                                <div class="scenario-desc">${esc.analisis}</div>
-                            </div>
-                        `;
-                    });
-
-                    document.getElementById('escenarios-list').innerHTML = htmlEscenarios;
-                    container.style.display = 'block';
-                } else {
-                    alert('Error en el motor: ' + data.message);
-                }
-            } catch (err) {
-                alert('Fallo de comunicación con el servidor Sharp.');
-            } finally {
-                btn.style.display = 'block';
-                loading.style.display = 'none';
+                document.getElementById('escenarios-container').innerHTML = htmlEscenarios;
+            } else {
+                alert("Error en el motor: " + data.message);
             }
-        }
-    </script>
+        })
+        .catch(error => {
+            document.getElementById('loading').style.display = 'none';
+            alert("Error de conexión con la terminal: " + error);
+        });
+    }
+</script>
+
 </body>
 </html>
