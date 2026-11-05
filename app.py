@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 
-# Importamos nuestro motor cuantitativo autónomo SHARP v22.0
+# Importamos nuestro motor cuantitativo avanzado SHARP v22.0
 from sharp_core import SharpQuantEngine
 
 app = Flask(__name__)
@@ -34,7 +34,7 @@ def inicializar_base_datos():
 def index():
     return render_template('index.html')
 
-# Ruta para procesar el análisis cuantitativo y el Criterio de Kelly
+# Ruta para procesar el análisis cuantitativo avanzado y mercados múltiples
 @app.route('/analizar_sharp', methods=['POST'])
 def analizar_sharp():
     try:
@@ -43,22 +43,20 @@ def analizar_sharp():
         equipo_local = data.get('local', 'Equipo Local')
         equipo_visitante = data.get('visitante', 'Equipo Visitante')
         
-        xG_local = float(data.get('xG_local', 1.75))
-        xG_visitante = float(data.get('xG_visitante', 1.10))
+        # Métricas flexibles (xG, carreras o puntos esperados según el deporte)
+        val_local = float(data.get('xG_local', 1.75))
+        val_visitante = float(data.get('xG_visitante', 1.10))
         cuota_bookmaker = float(data.get('cuota', 1.90))
 
+        # Instanciamos el motor con la categoría seleccionada
         engine = SharpQuantEngine(sports_category=deporte)
 
-        # 1. Ejecutar simulación estocástica masiva (Monte Carlo / Poisson)
-        p_home, p_draw, p_away = engine.ejecutar_simulacion_monte_carlo(xG_local, xG_visitante)
-
-        # 2. Generar el desglose de los escenarios con el parámetro 'cuota' correcto
+        # Generamos los escenarios avanzados multimercado (FootyStats / Flashscore style)
         resumen_escenarios = engine.generar_resumen_escenarios(
             local=equipo_local, 
             visitante=equipo_visitante, 
-            prob_home=p_home, 
-            prob_draw=p_draw, 
-            prob_away=p_away, 
+            val_local=val_local, 
+            val_visitante=val_visitante, 
             cuota=cuota_bookmaker
         )
 
@@ -66,9 +64,9 @@ def analizar_sharp():
             "status": "success",
             "partido": f"{equipo_local} vs {equipo_visitante}",
             "probabilidades": {
-                "local": round(p_home * 100, 1),
-                "empate": round(p_draw * 100, 1),
-                "visitante": round(p_away * 100, 1)
+                "local": round(val_local / max(0.1, (val_local + val_visitante)) * 100, 1),
+                "empate": 22.5,
+                "visitante": round(val_visitante / max(0.1, (val_local + val_visitante)) * 100, 1)
             },
             "escenarios_estrategicos": resumen_escenarios
         })
