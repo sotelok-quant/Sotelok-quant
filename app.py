@@ -49,15 +49,17 @@ def analizar_sharp():
 
         engine = SharpQuantEngine(sports_category=deporte)
 
+        # 1. Ejecutar simulación estocástica masiva (Monte Carlo / Poisson)
         p_home, p_draw, p_away = engine.ejecutar_simulacion_monte_carlo(xG_local, xG_visitante)
 
+        # 2. Generar el desglose de los escenarios con el parámetro 'cuota' correcto
         resumen_escenarios = engine.generar_resumen_escenarios(
             local=equipo_local, 
             visitante=equipo_visitante, 
             prob_home=p_home, 
             prob_draw=p_draw, 
             prob_away=p_away, 
-            cuota_bookmaker=cuota_bookmaker
+            cuota=cuota_bookmaker
         )
 
         return jsonify({
