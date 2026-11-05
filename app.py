@@ -29,28 +29,28 @@ def inicializar_base_datos():
     except Exception as e:
         print(f"Error DB: {e}")
 
-# Ruta principal del Radar Sharp / Inyección Fortress
+# Ruta principal: Muestra nuestra interfaz visual estilo Radar Táctico
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+# Ruta para procesar el análisis cuantitativo y el Criterio de Kelly
 @app.route('/analizar_sharp', methods=['POST'])
 def analizar_sharp():
     try:
-        # Recibimos los datos enviados desde la interfaz web
         data = request.json
         deporte = data.get('deporte', 'futbol_secundaria')
         equipo_local = data.get('local', 'Equipo Local')
         equipo_visitante = data.get('visitante', 'Equipo Visitante')
         
-        # Métricas o promedios simulados/extraídos de la base de datos pública
         xG_local = float(data.get('xG_local', 1.75))
         xG_visitante = float(data.get('xG_visitante', 1.10))
         cuota_bookmaker = float(data.get('cuota', 1.90))
 
-        # Instanciamos el motor analítico
         engine = SharpQuantEngine(sports_category=deporte)
 
-        # 1. Ejecutar simulación estocástica masiva (Monte Carlo / Poisson)
         p_home, p_draw, p_away = engine.ejecutar_simulacion_monte_carlo(xG_local, xG_visitante)
 
-        # 2. Generar el desglose de los 2 escenarios de alto valor y filtro Kelly
         resumen_escenarios = engine.generar_resumen_escenarios(
             local=equipo_local, 
             visitante=equipo_visitante, 
@@ -60,7 +60,6 @@ def analizar_sharp():
             cuota_bookmaker=cuota_bookmaker
         )
 
-        # Retornamos el resultado en JSON listo para la interfaz
         return jsonify({
             "status": "success",
             "partido": f"{equipo_local} vs {equipo_visitante}",
