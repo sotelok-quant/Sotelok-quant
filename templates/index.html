@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOTELOK // SHARP v22.0 - Radar Cuantitativo</title>
+    <!-- Google Fonts para tipografía industrial y moderna -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #0a0e17;
+            --panel-bg: #131c2e;
+            --accent-green: #00ff66;
+            --accent-cyan: #00f0ff;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --danger: #ff3366;
+            --border-color: #1e293b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+        }
+
+        .brand {
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--accent-cyan);
+            font-size: 1.5rem;
+            letter-spacing: 2px;
+            margin-bottom: 5px;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .card {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        @media (max-width: 600px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        input, select {
+            width: 100%;
+            background-color: #0d1420;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--accent-cyan);
+        }
+
+        .btn-sharp {
+            width: 100%;
+            background: linear-gradient(135deg, #00f0ff 0%, #0077ff 100%);
+            color: #000;
+            font-weight: 800;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-sharp:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+        }
+
+        /* Resultados Ocultos por defecto */
+        #resultado-container {
+            display: none;
+        }
+
+        .match-title {
+            font-size: 1.4rem;
+            font-weight: 800;
+            color: var(--accent-green);
+            margin-bottom: 20px;
+            text-align: center;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .prob-bars {
+            display: flex;
+            justify-content: space-between;
+            background: #0d1420;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .prob-item span {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .prob-item strong {
+            font-size: 1.2rem;
+            color: var(--accent-cyan);
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .scenario-box {
+            background-color: #0d1420;
+            border-left: 4px solid var(--accent-cyan);
+            padding: 15px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 15px;
+        }
+
+        .scenario-box.alt {
+            border-left-color: var(--accent-green);
+        }
+
+        .scenario-tag {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--accent-cyan);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .scenario-box.alt .scenario-tag {
+            color: var(--accent-green);
+        }
+
+        .scenario-heading {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .scenario-desc {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .loading {
+            text-align: center;
+            color: var(--accent-cyan);
+            font-family: 'Share Tech Mono', monospace;
+            display: none;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <div class="brand">SOTELOK // SHARP v22.0</div>
+            <h1>Terminal Cuantitativa Autónoma</h1>
+        </header>
+
+        <!-- Formulario de Entrada -->
+        <div class="card">
+            <div class="form-grid">
+                <div class="input-group">
+                    <label>DEPORTE / LIGA</label>
+                    <select id="deporte">
+                        <option value="futbol_secundaria">Fútbol (Ligas Secundarias)</option>
+                        <option value="beisbol_mlb">Béisbol (MLB / LVBP)</option>
+                        <option value="baloncesto">Baloncesto (NBA / EuroLeague)</option>
+                        <option value="tenis_mesa">Tenis de Mesa (Liga Pro)</option>
+                        <option value="hockey">Hockey sobre Hielo (NHL)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>CUOTA BOOKMAKER</label>
+                    <input type="number" id="cuota" value="1.95" step="0.01">
+                </div>
+                <div class="input-group">
+                    <label>EQUIPO LOCAL</label>
+                    <input type="text" id="local" value="St. Pauli">
+                </div>
+                <div class="input-group">
+                    <label>EQUIPO VISITANTE</label>
+                    <input type="text" id="visitante" value="Nürnberg">
+                </div>
+                <div class="input-group">
+                    <label>MÉTRICA xG / OFENSIVA LOCAL</label>
+                    <input type="number" id="xG_local" value="1.85" step="0.05">
+                </div>
+                <div class="input-group">
+                    <label>MÉTRICA xG / OFENSIVA VISITANTE</label>
+                    <input type="number" id="xG_visitante" value="0.95" step="0.05">
+                </div>
+            </div>
+            <button class="btn-sharp" onclick="ejecutarAnalisisSharp()">Activar Análisis Sharp Fortress</button>
+            <div id="loading" class="loading">EJECUTANDO SIMULACIÓN MONTE CARLO (5,000 ITERACIONES)...</div>
+        </div>
+
+        <!-- Contenedor de Resultados Estilo Radar -->
+        <div id="resultado-container" class="card">
+            <div class="match-title" id="res-partido"></div>
+            
+            <div class="prob-bars">
+                <div class="prob-item">
+                    <span>PROBABILIDAD LOCAL</span>
+                    <strong id="prob-l">0%</strong>
+                </div>
+                <div class="prob-item">
+                    <span>EMPATE / VARIANZA</span>
+                    <strong id="prob-e">0%</strong>
+                </div>
+                <div class="prob-item">
+                    <span>PROBABILIDAD VISITANTE</span>
+                    <strong id="prob-v">0%</strong>
+                </div>
+            </div>
+
+            <div id="escenarios-list">
+                <!-- Se inyectarán dinámicamente los escenarios -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function ejecutarAnalisisSharp() {
+            const btn = document.querySelector('.btn-sharp');
+            const loading = document.getElementById('loading');
+            const container = document.getElementById('resultado-container');
+
+            btn.style.display = 'none';
+            loading.style.display = 'block';
+            container.style.display = 'none';
+
+            const payload = {
+                deporte: document.getElementById('deporte').value,
+                local: document.getElementById('local').value,
+                visitante: document.getElementById('visitante').value,
+                xG_local: parseFloat(document.getElementById('xG_local').value),
+                xG_visitante: parseFloat(document.getElementById('xG_visitante').value),
+                cuota: parseFloat(document.getElementById('cuota').value)
+            };
+
+            try {
+                const response = await fetch('/analizar_sharp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    document.getElementById('res-partido').innerText = data.partido;
+                    document.getElementById('prob-l').innerText = data.probabilidades.local + '%';
+                    document.getElementById('prob-e').innerText = data.probabilidades.empate + '%';
+                    document.getElementById('prob-v').innerText = data.probabilidades.visitante + '%';
+
+                    let htmlEscenarios = '';
+                    data.escenarios_estrategicos.forEach((esc, index) => {
+                        const altClass = index > 0 ? 'alt' : '';
+                        htmlEscenarios += `
+                            <div class="scenario-box ${altClass}">
+                                <div class="scenario-tag">${esc.rango} // ${esc.probabilidad}</div>
+                                <div class="scenario-heading">${esc.titulo}</div>
+                                <div class="scenario-desc">${esc.analisis}</div>
+                            </div>
+                        `;
+                    });
+
+                    document.getElementById('escenarios-list').innerHTML = htmlEscenarios;
+                    container.style.display = 'block';
+                } else {
+                    alert('Error en el motor: ' + data.message);
+                }
+            } catch (err) {
+                alert('Fallo de comunicación con el servidor Sharp.');
+            } finally {
+                btn.style.display = 'block';
+                loading.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
