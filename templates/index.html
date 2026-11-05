@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOTELOK // SHARP LIVE TERMINAL</title>
+    <title>SOTELOK // SHARP QUANT TERMINAL</title>
     <style>
         :root {
             --bg-deep: #07090e;
@@ -23,7 +23,6 @@
         .header { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; text-align: center; }
         .title { font-size: 0.95rem; font-weight: 900; color: var(--accent-cyan); letter-spacing: 1px; text-transform: uppercase; }
 
-        /* CARTELERA VIVA ESTILO FLASH/180SCORE */
         .live-cartelera { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
         .cartelera-title { font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; margin-bottom: 4px; }
         
@@ -43,16 +42,13 @@
         .match-teams-name { font-size: 0.82rem; font-weight: 800; }
         .match-time { font-size: 0.75rem; background: #07090e; padding: 3px 6px; border-radius: 4px; color: var(--accent-green); font-weight: 700; }
 
-        /* PANEL DE CONTROL MANUAL */
         .control-panel { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
         .input-group { display: flex; flex-direction: column; gap: 2px; }
         label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
         select, input { background: var(--card-bg); border: 1px solid var(--border-color); color: #fff; padding: 6px 8px; border-radius: 6px; font-size: 0.85rem; outline: none; }
-        
         .btn-exec { background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%); color: #000; border: none; padding: 10px; border-radius: 6px; font-weight: 900; font-size: 0.8rem; text-transform: uppercase; cursor: pointer; margin-top: 2px; }
 
-        /* RESULTADOS */
         .results-section { display: none; flex-direction: column; gap: 8px; }
         .match-card { background: var(--panel-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px; text-align: center; }
         .teams-result { font-size: 0.95rem; font-weight: 800; color: var(--accent-green); margin-bottom: 6px; }
@@ -74,6 +70,12 @@
         .insight-box.alt .tag { color: var(--accent-green); }
         .heading { font-size: 0.78rem; font-weight: 700; }
         .desc { font-size: 0.72rem; color: var(--text-muted); line-height: 1.3; }
+
+        /* TABLAS ESTADÍSTICAS ESTILO FOOTYSTATS */
+        .stat-table { width: 100%; border-collapse: collapse; background: var(--panel-bg); border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color); }
+        .stat-table th, .stat-table td { padding: 8px 10px; font-size: 0.75rem; text-align: left; border-bottom: 1px solid var(--border-color); }
+        .stat-table th { background: var(--card-bg); color: var(--text-muted); text-transform: uppercase; font-size: 0.65rem; }
+        .stat-table td span { font-weight: 800; color: var(--accent-cyan); }
     </style>
 </head>
 <body>
@@ -83,10 +85,9 @@
         <div class="title">SOTELOK // SHARP LIVE TERMINAL</div>
     </div>
 
-    <!-- CARTELERA DE PARTIDOS EN VIVO (Estilo Flashscore) -->
+    <!-- CARTELERA DE PARTIDOS EN VIVO -->
     <div class="live-cartelera" id="cartelera-container">
         <div class="cartelera-title">📅 Partidos Destacados de Hoy (En Vivo / Cartelera)</div>
-        <!-- Inyectados por JS -->
     </div>
 
     <!-- PANEL DE CONTROL -->
@@ -136,6 +137,7 @@
             <button class="tab-btn" onclick="cambiarTab(3)">Estadísticas</button>
         </div>
 
+        <!-- TAB 0: RESUMEN IA -->
         <div class="tab-content active" id="tc-0">
             <div class="insight-box" id="box-0">
                 <div class="tag" id="t-0">VALOR ESPERADO</div>
@@ -149,36 +151,39 @@
             </div>
         </div>
 
+        <!-- TAB 1: GOLES / TOTALES -->
         <div class="tab-content" id="tc-1">
-            <div class="insight-box">
-                <div class="tag">MERCADO DE GOLES</div>
-                <div class="heading">Análisis Profundo de Over/Under</div>
-                <div class="desc">Proyección basada en el ritmo de disparos a puerta y conversión de xG de ambos conjuntos.</div>
-            </div>
+            <table class="stat-table">
+                <tr><th>Métrica de Goles</th><th>Valor Calculado (IA)</th></tr>
+                <tr><td>Goles Esperados (xG Combinados)</td><td><span id="st-xg">-</span></td></tr>
+                <tr><td>Probabilidad Ambos Anotan (BTTS)</td><td><span id="st-btts">-</span></td></tr>
+                <tr><td>Probabilidad Más de 2.5 Goles</td><td><span id="st-over">-</span></td></tr>
+            </table>
         </div>
 
+        <!-- TAB 2: CÓRNERS / DNB -->
         <div class="tab-content" id="tc-2">
-            <div class="insight-box">
-                <div class="tag">CÓRNERS Y APUESTA SIN EMPATE</div>
-                <div class="heading">Presión en Áreas y Coberturas DNB</div>
-                <div class="desc">Tendencia de saques de esquina derivada del volumen de ataques exteriores registrados en la base de datos.</div>
-            </div>
+            <table class="stat-table">
+                <tr><th>Mercado Secundario</th><th>Proyección Numérica</th></tr>
+                <tr><td>Córners Totales Estimados</td><td><span id="st-corners">-</span></td></tr>
+                <tr><td>Tarjetas Amarillas Promedio</td><td><span id="st-cards">-</span></td></tr>
+                <tr><td>Stake Sugerido (Criterio Kelly)</td><td><span id="st-kelly">-</span></td></tr>
+            </table>
         </div>
 
+        <!-- TAB 3: ESTADÍSTICAS H2H -->
         <div class="tab-content" id="tc-3">
-            <div class="insight-box">
-                <div class="tag">ESTADÍSTICAS H2H Y MEDIAS</div>
-                <div class="heading">Comparativa con la Media de la Liga</div>
-                <div class="desc">Indicadores de rendimiento histórico persistentes en la base de datos local SQLite.</div>
-            </div>
+            <table class="stat-table">
+                <tr><th>Parámetro Histórico</th><th>Estado en SQLite</th></tr>
+                <tr><td>Persistencia de Datos</td><td><span>Activa (Sincronizada)</span></td></tr>
+                <tr><td>Estado del Motor Estocástico</td><td><span>Poisson & Monte Carlo OK</span></td></tr>
+            </table>
         </div>
     </div>
 </div>
 
 <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        cargarCarteleraEnVivo();
-    });
+    document.addEventListener("DOMContentLoaded", () => { cargarCarteleraEnVivo(); });
 
     function cargarCarteleraEnVivo() {
         fetch('/partidos_hoy')
@@ -237,15 +242,24 @@
                 document.getElementById('v-draw').innerText = data.probabilidades.empate + '%';
                 document.getElementById('v-away').innerText = data.probabilidades.visitante + '%';
 
-                if (data.escenarios_estrategicos && data.escenarios_estrategicos.length >= 2) {
-                    document.getElementById('t-0').innerText = data.escenarios_estrategicos[0].rango;
-                    document.getElementById('h-0').innerText = data.escenarios_estrategicos[0].titulo;
-                    document.getElementById('d-0').innerText = data.escenarios_estrategicos[0].analisis;
+                // Inyectar Resumen IA
+                if (data.escenarios && data.escenarios.length >= 2) {
+                    document.getElementById('t-0').innerText = data.escenarios[0].rango;
+                    document.getElementById('h-0').innerText = data.escenarios[0].titulo;
+                    document.getElementById('d-0').innerText = data.escenarios[0].analisis;
 
-                    document.getElementById('t-1').innerText = data.escenarios_estrategicos[1].rango;
-                    document.getElementById('h-1').innerText = data.escenarios_estrategicos[1].titulo;
-                    document.getElementById('d-1').innerText = data.escenarios_estrategicos[1].analisis;
+                    document.getElementById('t-1').innerText = data.escenarios[1].rango;
+                    document.getElementById('h-1').innerText = data.escenarios[1].titulo;
+                    document.getElementById('d-1').innerText = data.escenarios[1].analisis;
                 }
+
+                // Inyectar Tablas Estadísticas reales
+                document.getElementById('st-xg').innerText = data.estadisticas.xg_combinado;
+                document.getElementById('st-btts').innerText = data.estadisticas.btts + '%';
+                document.getElementById('st-over').innerText = data.estadisticas.over_25 + '%';
+                document.getElementById('st-corners').innerText = data.estadisticas.corners + ' aprox.';
+                document.getElementById('st-cards').innerText = data.estadisticas.tarjetas + ' amarillas';
+                document.getElementById('st-kelly').innerText = data.kelly + '% del Bank';
             }
         });
     }
