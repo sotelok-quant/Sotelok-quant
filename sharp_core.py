@@ -1,137 +1,80 @@
+import os
 import math
-import random
-import datetime
+import sqlite3
+from datetime import datetime
+from flask import Flask, render_template, request, jsonify
 
-class SharpQuantEngine:
-    def __init__(self, sports_category="futbol_secundaria"):
-        self.category = sports_category
+# Importamos nuestro motor cuantitativo autónomo SHARP v22.0
+from sharp_core import SharpQuantEngine
 
-    def simular_poisson(self, lmbda):
-        """Genera distribución de Poisson pura para modelado estocástico."""
-        L = math.exp(-lmbda)
-        k = 0
-        p = 1.0
-        while p > L:
-            k += 1
-            p *= random.random()
-        return k - 1
+app = Flask(__name__)
+app.secret_key = "sotelok_sharp_fortress_2026"
 
-    def ejecutar_simulacion_monte_carlo(self, exp_home, exp_away, iteraciones=5000):
-        """Simula 5,000 partidos en milisegundos para evaluar múltiples escenarios cruzados."""
-        victorias_local = 0
-        empates = 0
-        victorias_visitante = 0
+DB_NAME = "sotelok_final.db"
 
-        for _ in range(iteraciones):
-            goles_h = self.simular_poisson(exp_home)
-            goles_a = self.simular_poisson(exp_away)
-            
-            if goles_h > goles_a:
-                victorias_local += 1
-            elif goles_h == goles_a:
-                empates += 1
-            else:
-                victorias_visitante += 1
+def inicializar_base_datos():
+    """Inicializa la base de datos de manera segura."""
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                correo TEXT UNIQUE,
+                password TEXT
+            )
+        ''')
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error DB: {e}")
 
-        prob_home = victorias_local / iteraciones
-        prob_draw = empates / iteraciones
-        prob_away = victorias_visitante / iteraciones
-        return prob_home, prob_draw, prob_away
+# Ruta principal: Muestra nuestra interfaz visual estilo Radar Táctico
+@app.route('/')
+def index():
+    return render_template('index.html')
 
-    def auditar_apuesta_sharp(self, prob_real, cuota_bookmaker, bankroll=1000.0, kelly_fraction=0.25):
-        """Filtro de Descarte Implacable + Criterio de Kelly Quirúrgico."""
-        prob_implicita = 1.0 / cuota_bookmaker
-        ev = (prob_real * (cuota_bookmaker - 1.0)) - (1.0 - prob_real)
+# Ruta para procesar el análisis cuantitativo y el Criterio de Kelly
+@app.route('/analizar_sharp', methods=['POST'])
+def analizar_sharp():
+    try:
+        data = request.json
+        deporte = data.get('deporte', 'futbol_secundaria')
+        equipo_local = data.get('local', 'Equipo Local')
+        equipo_visitante = data.get('visitante', 'Equipo Visitante')
+        
+        xG_local = float(data.get('xG_local', 1.75))
+        xG_visitante = float(data.get('xG_visitante', 1.10))
+        cuota_bookmaker = float(data.get('cuota', 1.90))
 
-        # Filtro Sharp: Si no hay Valor Esperado (+EV >= +4%), se DESCARTA de raíz.
-        if ev < 0.04:
-            return {
-                "aprobado": False,
-                "motivo": f"RECHAZADO: EV bajo ({ev*100:.2f}%). No cumple estándar Sharp.",
-                "stake_recomendado": 0.0
-            }
+        engine = SharpQuantEngine(sports_category=deporte)
 
-        # Criterio de Kelly Fraccionado para protección de caja
-        b = cuota_bookmaker - 1.0
-        p = prob_real
-        q = 1.0 - p
-        f_kelly = (b * p - q) / b
-        stake_monto = max(0.0, bankroll * f_kelly * kelly_fraction)
+        # 1. Ejecutar simulación estocástica masiva (Monte Carlo / Poisson)
+        p_home, p_draw, p_away = engine.ejecutar_simulacion_monte_carlo(xG_local, xG_visitante)
 
-        return {
-            "aprobado": True,
-            "ev_porcentaje": round(ev * 100, 2),
-            "stake_monto": round(stake_monto, 2),
-            "porcentaje_caja": round(f_kelly * kelly_fraction * 100, 2)
-        }
+        # 2. Generar el desglose de los escenarios tácticos
+        resumen_escenarios = engine.generar_resumen_escenarios(
+            local=equipo_local, 
+            visitante=equipo_visitante, 
+            prob_home=p_home, 
+            prob_draw=p_draw, 
+            prob_away=p_away
+        )
 
-    def generar_resumen_escenarios(self, local, visitante, prob_home, prob_draw, prob_away, cuota_local):
-        """Genera el desglose táctico y cuantitativo de los dos mejores escenarios posibles."""
-        escenarios = []
+        return jsonify({
+            "status": "success",
+            "partido": f"{equipo_local} vs {equipo_visitante}",
+            "probabilidades": {
+                "local": round(p_home * 100, 1),
+                "empate": round(p_draw * 100, 1),
+                "visitante": round(p_away * 100, 1)
+            },
+            "escenarios_estrategicos": resumen_escenarios
+        })
 
-        # Escenario 1: Proyección de Escenario Principal
-        if prob_home >= prob_away and prob_home >= prob_draw:
-            escenarios.append({
-                "rango": "ESCENARIO A (ALTA PROBABILIDAD)",
-                "titulo": f"Dominio Estructural de {local}",
-                "probabilidad": f"{prob_home * 100:.1f}%",
-                "analisis": f"El modelo detecta solidez en las métricas defensivas de {local}. "
-                            f"La presión en bloques medios obligará a {visitante} a conceder oportunidades de alto valor ($xG > 1.45$)."
-            })
-        else:
-            escenarios.append({
-                "rango": "ESCENARIO A (ALTA PROBABILIDAD)",
-                "titulo": f"Transición Rápida y Eficiencia de {visitante}",
-                "probabilidad": f"{prob_away * 100:.1f}%",
-                "analisis": f"{visitante} capitaliza con efectividad en desplazamientos lejanos. "
-                            f"La tasa de conversión en los últimos 5 encuentros supera la media de la liga."
-            })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
-        # Escenario 2: Escenario Cobertura / Valor Oculto (+EV)
-        audit = self.auditar_apuesta_sharp(prob_home, cuota_local)
-        if audit["aprobado"]:
-            escenarios.append({
-                "rango": "ESCENARIO B (VALOR SHARP / +EV)",
-                "titulo": f"Inyección de Capital a {local} (Cuota {cuota_local})",
-                "probabilidad": f"EV del +{audit['ev_porcentaje']}%",
-                "analisis": f"Existe un descalibre claro en la bookmaker. Con un Stake sugerido de "
-                            f"${audit['stake_monto']} ({audit['porcentaje_caja']}% de la caja), la línea ofrece valor matemático real."
-            })
-        else:
-            escenarios.append({
-                "rango": "ESCENARIO B (GESTIÓN DE RIESGO / DESCARTE)",
-                "titulo": "Protección de Capital Activada",
-                "probabilidad": f"Empate/Varianza Alta ({prob_draw*100:.1f}%)",
-                "analisis": "El mercado no compensa el riesgo de varianza. El motor sugiere abstenerse de la entrada directa "
-                            "o buscar mercados alternativos de hándicap conservador."
-            })
-
-        return escenarios
-
-# --- EJEMPLO DE EJECUCIÓN DEL MOTOR SHARP ---
 if __name__ == "__main__":
-    engine = SharpQuantEngine("futbol_secundaria")
-    
-    # Simulación de datos extraídos en tiempo real para un partido de 2. Bundesliga
-    local_team = "St. Pauli"
-    away_team = "Nürnberg"
-    
-    # Métricas calculadas tras ingesta de datos reales: Goles esperados
-    xG_local = 1.85
-    xG_visitante = 0.95
-    cuota_ofrecida_local = 1.95
-
-    # 1. Ejecutar Monte Carlo masivo
-    p_home, p_draw, p_away = engine.ejecutar_simulacion_monte_carlo(xG_local, xG_visitante)
-
-    # 2. Obtener resumen detallado de escenarios de alto valor
-    resumen = engine.generar_resumen_escenarios(local_team, away_team, p_home, p_draw, p_away, cuota_ofrecida_local)
-
-    print("=== SOTELOK // SHARP v22.0 CORE OUTPUT ===")
-    print(f"Partido: {local_team} vs {away_team}")
-    print(f"Probabilidades Calculadas -> Local: {p_home*100:.1f}% | Empate: {p_draw*100:.1f}% | Visitante: {p_away*100:.1f}%\n")
-    
-    for esc in resumen:
-        print(f"[{esc['rango']}] {esc['titulo']}")
-        print(f"Probabilidad / Valor: {esc['probabilidad']}")
-        print(f"Análisis Táctico: {esc['analisis']}\n")
+    inicializar_base_datos()
+    app.run(host="0.0.0.0", port=5000, debug=True)
