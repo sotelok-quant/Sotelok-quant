@@ -106,4 +106,4 @@ class SharpQuantEngine:
             "analisis": f"La probabilidad conjunta de empate/visita es de {round((prob_draw + prob_away) * 100, 1)}%. Monitorear comportamiento de líneas secundarias."
         })
 
-        return scenarios
+        return escenarios
